@@ -4,20 +4,29 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/lib/utils';
-import { useTheme } from '@/components/ThemeProvider';
+import { Icon, IconName } from '@/components/stadium/Icon';
+import { useStore } from '@/store/useStore';
+import { calculateLevel } from '@/lib/utils';
 
-const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Dashboard', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
-  { href: '/portfolio', label: 'My Teams', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' },
-  { href: '/templates', label: 'Templates', icon: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z' },
-  { href: '/challenges', label: 'Challenges', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
-  { href: '/compare', label: 'Compare', icon: 'M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3' },
-  { href: '/explore', label: 'Explore', icon: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' },
-  { href: '/leaderboard', label: 'Ranks', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
-  { href: '/market', label: 'Market', icon: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6' },
-  { href: '/coaching', label: 'Coaching', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253' },
-  { href: '/guide', label: 'Guide', icon: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+type NavItem = {
+  href: string;
+  label: string;
+  icon: IconName;
+};
+
+// Routes map 1:1 to the existing app routes — only labels and icons changed.
+const NAV_ITEMS: NavItem[] = [
+  { href: '/dashboard',   label: 'Matchday',  icon: 'Matchday' },
+  { href: '/portfolio',   label: 'Squads',    icon: 'Pitch'    },
+  { href: '/templates',   label: 'Lineups',   icon: 'Lineup'   },
+  { href: '/challenges',  label: 'Fixtures',  icon: 'Fixture'  },
+  { href: '/leaderboard', label: 'League',    icon: 'Table'    },
+  { href: '/market',      label: 'Transfer',  icon: 'Transfer' },
+  { href: '/explore',     label: 'Scout',     icon: 'Scout'    },
+  { href: '/coaching',    label: 'Training',  icon: 'Coach'    },
+  { href: '/learn',       label: 'Academy',   icon: 'Guide'    },
+  { href: '/compare',     label: 'Compare',   icon: 'Compare'  },
+  { href: '/guide',       label: 'Playbook',  icon: 'Whistle'  },
 ];
 
 interface SidebarProps {
@@ -34,87 +43,159 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onMobileClose,
 }) => {
   const pathname = usePathname();
-  const { resolvedTheme } = useTheme();
+  const { currentUser } = useStore();
+  const levelInfo = currentUser ? calculateLevel(currentUser.xp) : null;
 
   const sidebarContent = (
-    <div className="flex flex-col h-full">
-      {/* Logo */}
-      <div className={cn(
-        'flex items-center gap-3 px-4 py-5 border-b',
-        resolvedTheme === 'dark' ? 'border-slate-800' : 'border-slate-200',
-        isCollapsed && 'justify-center px-2'
-      )}>
-        <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 flex-shrink-0">
-          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
+    <div className="flex flex-col h-full" style={{ background: 'var(--bg-2)' }}>
+      {/* Logo block */}
+      <div
+        className="flex items-center gap-3"
+        style={{
+          padding: isCollapsed ? '20px 16px' : '20px 18px',
+          borderBottom: '1px solid var(--line)',
+        }}
+      >
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 8,
+            background: 'var(--text)',
+            color: 'var(--bg)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <Icon.Logo size={22} />
         </div>
         {!isCollapsed && (
           <div>
-            <h1 className={cn(
-              'text-lg font-bold',
-              resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900'
-            )}>Gamefi Invest</h1>
-            <p className={cn(
-              'text-xs',
-              resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600'
-            )}>Build Your Dream Team</p>
+            <div className="display" style={{ fontSize: 16, letterSpacing: '-0.03em', color: 'var(--text)' }}>
+              GAMEFI
+            </div>
+            <div className="kicker" style={{ fontSize: 9, marginTop: -2 }}>
+              INVEST · LEAGUE
+            </div>
           </div>
         )}
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
+      {/* Nav */}
+      <nav
+        className="flex-1 overflow-y-auto"
+        style={{ padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}
+      >
         {NAV_ITEMS.map((item) => {
+          const IconCmp = Icon[item.icon];
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           return (
             <Link
               key={item.href}
               href={item.href}
               onClick={onMobileClose}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
-                isCollapsed && 'justify-center px-2',
-                isActive
-                  ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-400 border border-emerald-500/30'
-                  : resolvedTheme === 'dark'
-                    ? 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-              )}
               title={isCollapsed ? item.label : undefined}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: isCollapsed ? '10px 16px' : '10px 12px',
+                background: isActive ? 'var(--surface)' : 'transparent',
+                border: isActive ? '1px solid var(--line-2)' : '1px solid transparent',
+                borderLeft: isActive ? '3px solid var(--pitch)' : '3px solid transparent',
+                color: isActive ? 'var(--text)' : 'var(--text-dim)',
+                textAlign: 'left',
+                borderRadius: 6,
+                fontFamily: 'var(--font-display)',
+                fontWeight: isActive ? 600 : 500,
+                fontSize: 13,
+                letterSpacing: '0.01em',
+                transition: 'background .12s, color .12s',
+                textDecoration: 'none',
+              }}
+              onMouseEnter={(e) => {
+                if (!isActive) {
+                  (e.currentTarget as HTMLElement).style.color = 'var(--text)';
+                  (e.currentTarget as HTMLElement).style.background = 'var(--surface)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  (e.currentTarget as HTMLElement).style.color = 'var(--text-dim)';
+                  (e.currentTarget as HTMLElement).style.background = 'transparent';
+                }
+              }}
             >
-              <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={item.icon} />
-              </svg>
+              <IconCmp size={18} />
               {!isCollapsed && <span>{item.label}</span>}
             </Link>
           );
         })}
       </nav>
 
-      {/* Collapse Toggle (Desktop only) */}
-      <div className={cn(
-        'hidden lg:block p-4 border-t',
-        resolvedTheme === 'dark' ? 'border-slate-800' : 'border-slate-200'
-      )}>
+      {/* Rank footer */}
+      {!isCollapsed && levelInfo && currentUser && (
+        <div style={{ padding: 12, borderTop: '1px solid var(--line)' }}>
+          <div className="kicker" style={{ fontSize: 9, marginBottom: 6 }}>YOUR RANK</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+            <div className="display num" style={{ fontSize: 26, letterSpacing: '-0.05em', color: 'var(--text)' }}>
+              Lv.{levelInfo.level}
+            </div>
+            <div className="mono" style={{ fontSize: 10, color: 'var(--pitch)' }}>
+              {currentUser.xp.toLocaleString()} XP
+            </div>
+          </div>
+          <div
+            style={{
+              marginTop: 6,
+              height: 4,
+              background: 'var(--surface)',
+              borderRadius: 2,
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                width: `${levelInfo.level >= 5 ? 100 : (levelInfo.currentXp / levelInfo.nextLevelXp) * 100}%`,
+                height: '100%',
+                background: 'var(--pitch)',
+              }}
+            />
+          </div>
+          <div className="mono" style={{ fontSize: 9, color: 'var(--text-mute)', marginTop: 4 }}>
+            {levelInfo.level >= 5
+              ? 'MAX LEVEL'
+              : `${levelInfo.currentXp} / ${levelInfo.nextLevelXp} XP TO LV.${levelInfo.level + 1}`}
+          </div>
+        </div>
+      )}
+
+      {/* Collapse toggle */}
+      <div className="hidden lg:block" style={{ padding: 12, borderTop: '1px solid var(--line)' }}>
         <button
           onClick={onToggle}
-          className={cn(
-            'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 w-full',
-            resolvedTheme === 'dark'
-              ? 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50',
-            isCollapsed && 'justify-center px-2'
-          )}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            width: '100%',
+            padding: '8px 10px',
+            background: 'transparent',
+            border: '1px solid var(--line)',
+            borderRadius: 6,
+            color: 'var(--text-dim)',
+            cursor: 'pointer',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            justifyContent: isCollapsed ? 'center' : 'flex-start',
+          }}
         >
-          <svg
-            className={cn('w-5 h-5 transition-transform duration-200', isCollapsed && 'rotate-180')}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-          </svg>
+          <Icon.Chevron size={14} style={{ transform: isCollapsed ? 'none' : 'rotate(180deg)' }} />
           {!isCollapsed && <span>Collapse</span>}
         </button>
       </div>
@@ -123,20 +204,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Desktop Sidebar */}
+      {/* Desktop sidebar */}
       <aside
-        className={cn(
-          'hidden lg:flex flex-col fixed left-0 top-0 h-screen backdrop-blur-md border-r z-40 transition-all duration-300',
-          resolvedTheme === 'dark'
-            ? 'bg-slate-900/95 border-slate-800'
-            : 'bg-white/95 border-slate-200',
-          isCollapsed ? 'w-[72px]' : 'w-64'
-        )}
+        className="hidden lg:flex flex-col fixed left-0 top-0 h-screen z-40"
+        style={{
+          width: isCollapsed ? 72 : 220,
+          background: 'var(--bg-2)',
+          borderRight: '1px solid var(--line)',
+          transition: 'width .2s ease',
+        }}
       >
         {sidebarContent}
       </aside>
 
-      {/* Mobile Overlay */}
+      {/* Mobile overlay */}
       <AnimatePresence>
         {isMobileOpen && (
           <>
@@ -145,33 +226,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={onMobileClose}
-              className="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+              className="lg:hidden fixed inset-0 z-40"
+              style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(2px)' }}
             />
             <motion.aside
               initial={{ x: -280 }}
               animate={{ x: 0 }}
               exit={{ x: -280 }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className={cn(
-                'lg:hidden fixed left-0 top-0 h-screen w-[280px] border-r z-50',
-                resolvedTheme === 'dark'
-                  ? 'bg-slate-900 border-slate-800'
-                  : 'bg-white border-slate-200'
-              )}
+              className="lg:hidden fixed left-0 top-0 h-screen z-50"
+              style={{
+                width: 260,
+                background: 'var(--bg-2)',
+                borderRight: '1px solid var(--line)',
+              }}
             >
-              {/* Close button */}
               <button
                 onClick={onMobileClose}
-                className={cn(
-                  'absolute top-4 right-4 p-2 rounded-lg transition-colors',
-                  resolvedTheme === 'dark'
-                    ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
-                )}
+                style={{
+                  position: 'absolute',
+                  top: 12,
+                  right: 12,
+                  padding: 8,
+                  background: 'transparent',
+                  border: '1px solid var(--line)',
+                  borderRadius: 6,
+                  color: 'var(--text-dim)',
+                  cursor: 'pointer',
+                  zIndex: 1,
+                }}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <Icon.Close size={16} />
               </button>
               {sidebarContent}
             </motion.aside>

@@ -1,8 +1,6 @@
 'use client';
 
 import React from 'react';
-import { cn } from '@/lib/utils';
-import { useTheme } from '@/components/ThemeProvider';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
@@ -12,6 +10,67 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   rightIcon?: React.ReactNode;
 }
 
+/* Map legacy variants onto the stadium button system.
+   - primary  → solid pitch-green
+   - secondary→ ink (high-contrast text on bg, inverse)
+   - outline  → ghost with a heavier border
+   - ghost    → transparent / line-bordered
+   - danger   → ref-red solid */
+const SIZE_PADDING: Record<NonNullable<ButtonProps['size']>, { padding: string; fontSize: number; gap: number }> = {
+  sm: { padding: '6px 10px', fontSize: 11, gap: 6 },
+  md: { padding: '9px 14px', fontSize: 13, gap: 8 },
+  lg: { padding: '12px 18px', fontSize: 14, gap: 10 },
+};
+
+const variantStyle = (variant: NonNullable<ButtonProps['variant']>): React.CSSProperties => {
+  switch (variant) {
+    case 'primary':
+      return {
+        background: 'var(--pitch)',
+        color: 'oklch(0.14 0.05 145)',
+        border: '1px solid var(--pitch-deep)',
+      };
+    case 'secondary':
+      return {
+        background: 'var(--text)',
+        color: 'var(--bg)',
+        border: '1px solid var(--text)',
+      };
+    case 'outline':
+      return {
+        background: 'transparent',
+        color: 'var(--text)',
+        border: '1px solid var(--line-2)',
+      };
+    case 'ghost':
+      return {
+        background: 'transparent',
+        color: 'var(--text)',
+        border: '1px solid var(--line)',
+      };
+    case 'danger':
+      return {
+        background: 'var(--ref-red)',
+        color: '#fff',
+        border: '1px solid var(--ref-red)',
+      };
+  }
+};
+
+const variantHover = (variant: NonNullable<ButtonProps['variant']>): React.CSSProperties => {
+  switch (variant) {
+    case 'primary':
+      return { background: 'var(--pitch-glow)' };
+    case 'secondary':
+      return { background: 'var(--text-dim)' };
+    case 'outline':
+    case 'ghost':
+      return { background: 'var(--surface-2)', borderColor: 'var(--line-2)' };
+    case 'danger':
+      return { background: 'oklch(0.55 0.22 25)' };
+  }
+};
+
 export const Button: React.FC<ButtonProps> = ({
   children,
   variant = 'primary',
@@ -20,68 +79,69 @@ export const Button: React.FC<ButtonProps> = ({
   leftIcon,
   rightIcon,
   className,
+  style,
   disabled,
   ...props
 }) => {
-  const { resolvedTheme } = useTheme();
-
-  const baseStyles =
-    'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
-
-  const getVariantStyles = () => {
-    const isDark = resolvedTheme === 'dark';
-
-    return {
-      primary:
-        'bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600 focus:ring-emerald-500 shadow-lg shadow-emerald-500/25',
-      secondary: isDark
-        ? 'bg-slate-800 text-white hover:bg-slate-700 focus:ring-slate-500'
-        : 'bg-slate-200 text-slate-900 hover:bg-slate-300 focus:ring-slate-400 border border-slate-300',
-      outline: isDark
-        ? 'border-2 border-slate-700 text-slate-300 hover:bg-slate-800 focus:ring-slate-500'
-        : 'border-2 border-slate-300 text-slate-700 hover:bg-slate-100 focus:ring-slate-400',
-      ghost: isDark
-        ? 'text-slate-300 hover:bg-slate-800 hover:text-white focus:ring-slate-500'
-        : 'text-slate-700 hover:bg-slate-200 hover:text-slate-900 focus:ring-slate-400',
-      danger:
-        'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
-    };
-  };
-
-  const variants = getVariantStyles();
-
-  const sizes = {
-    sm: 'px-3 py-1.5 text-sm gap-1.5',
-    md: 'px-4 py-2 text-sm gap-2',
-    lg: 'px-6 py-3 text-base gap-2.5',
+  const sizing = SIZE_PADDING[size];
+  const vStyle = variantStyle(variant);
+  const hover = variantHover(variant);
+  const baseStyle: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: sizing.gap,
+    padding: sizing.padding,
+    fontFamily: 'var(--font-display)',
+    fontWeight: 600,
+    fontSize: sizing.fontSize,
+    letterSpacing: '0.02em',
+    borderRadius: 8,
+    cursor: disabled || isLoading ? 'not-allowed' : 'pointer',
+    opacity: disabled || isLoading ? 0.55 : 1,
+    transition: 'background .15s ease, border-color .15s ease, transform .12s ease',
+    whiteSpace: 'nowrap',
+    ...vStyle,
+    ...style,
   };
 
   return (
     <button
-      className={cn(baseStyles, variants[variant], sizes[size], className)}
+      className={className}
+      style={baseStyle}
       disabled={disabled || isLoading}
+      onMouseEnter={(e) => {
+        if (disabled || isLoading) return;
+        Object.assign(e.currentTarget.style, hover);
+        props.onMouseEnter?.(e);
+      }}
+      onMouseLeave={(e) => {
+        if (disabled || isLoading) return;
+        Object.assign(e.currentTarget.style, vStyle);
+        props.onMouseLeave?.(e);
+      }}
+      onMouseDown={(e) => {
+        e.currentTarget.style.transform = 'translateY(1px)';
+        props.onMouseDown?.(e);
+      }}
+      onMouseUp={(e) => {
+        e.currentTarget.style.transform = 'translateY(0)';
+        props.onMouseUp?.(e);
+      }}
       {...props}
     >
       {isLoading ? (
-        <svg
-          className="animate-spin h-4 w-4"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-          />
-        </svg>
+        <span
+          style={{
+            width: sizing.fontSize,
+            height: sizing.fontSize,
+            border: '2px solid currentColor',
+            borderTopColor: 'transparent',
+            borderRadius: '50%',
+            animation: 'stadium-spin 0.9s linear infinite',
+            display: 'inline-block',
+          }}
+        />
       ) : (
         leftIcon
       )}

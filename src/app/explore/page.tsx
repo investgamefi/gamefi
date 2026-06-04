@@ -1,34 +1,38 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useStore } from '@/store/useStore';
-import { AppLayout, Input, PortfolioCard } from '@/components';
-import { Formation, FORMATIONS } from '@/types';
-import { useTheme } from '@/components/ThemeProvider';
-import { cn } from '@/lib/utils';
+import { AppLayout, Input } from '@/components';
+import { Formation, FORMATIONS, Portfolio, PortfolioPerformance } from '@/types';
+import { Icon } from '@/components/stadium/Icon';
+import { Pitch, FORMATIONS as PITCH_FORMATIONS, type FormationName, type PitchPlayer } from '@/components/stadium/Pitch';
+import { fetchMultiplePortfolioPerformances } from '@/hooks/usePortfolioRealPerformance';
+import { formatPercent, calculatePortfolioPerformance, getRelativeTime } from '@/lib/utils';
+
+type SortKey = 'recent' | 'popular' | 'cloned';
 
 export default function ExplorePage() {
-  const { resolvedTheme } = useTheme();
   const { publicPortfolios, refreshPortfolios, currentUser } = useStore();
   const [search, setSearch] = useState('');
   const [selectedFormation, setSelectedFormation] = useState<Formation | 'All'>('All');
-  const [sortBy, setSortBy] = useState<'recent' | 'popular' | 'cloned'>('popular');
+  const [sortBy, setSortBy] = useState<SortKey>('popular');
+  const [perfMap, setPerfMap] = useState<
+    Map<string, { performance: PortfolioPerformance; isRealData: boolean }>
+  >(new Map());
 
   useEffect(() => {
     refreshPortfolios();
   }, [refreshPortfolios]);
 
   const filteredPortfolios = useMemo(() => {
-    // Filter out current user's portfolios - only show other people's teams
-    let portfolios = publicPortfolios.filter(p => p.userId !== currentUser?.id);
+    let portfolios = publicPortfolios.filter((p) => p.userId !== currentUser?.id);
 
     if (search) {
-      const lowerSearch = search.toLowerCase();
+      const q = search.toLowerCase();
       portfolios = portfolios.filter(
-        (p) =>
-          p.name.toLowerCase().includes(lowerSearch) ||
-          p.description?.toLowerCase().includes(lowerSearch)
+        (p) => p.name.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q),
       );
     }
 
@@ -51,117 +55,354 @@ export default function ExplorePage() {
     return portfolios;
   }, [publicPortfolios, currentUser?.id, search, selectedFormation, sortBy]);
 
+  // Fetch real perf data for visible portfolios
+  useEffect(() => {
+    if (filteredPortfolios.length === 0) return;
+    const run = async () => {
+      try {
+        const performances = await fetchMultiplePortfolioPerformances(
+          filteredPortfolios.slice(0, 30),
+          '1M',
+        );
+        setPerfMap(performances);
+      } catch (err) {
+        console.error('Failed to fetch explore performances:', err);
+      }
+    };
+    run();
+  }, [filteredPortfolios]);
+
   return (
-    <AppLayout>
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-        <h1 className={cn('text-3xl font-bold mb-2', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>Explore</h1>
-        <p className={cn(resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>Discover portfolios from the community and get inspired.</p>
-      </motion.div>
-
-      {/* Filters */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="flex flex-col lg:flex-row gap-4 mb-8"
-      >
-        <div className="flex-1">
-          <Input
-            placeholder="Search portfolios..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            leftIcon={
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            }
-          />
-        </div>
-
-        <select
-          value={selectedFormation}
-          onChange={(e) => setSelectedFormation(e.target.value as Formation | 'All')}
-          className={cn(
-            'rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 border',
-            resolvedTheme === 'dark'
-              ? 'bg-slate-800 border-slate-700 text-white'
-              : 'bg-white border-slate-300 text-slate-900'
-          )}
-        >
-          <option value="All">All Formations</option>
-          {(Object.keys(FORMATIONS) as Formation[]).map((formation) => (
-            <option key={formation} value={formation}>{formation}</option>
-          ))}
-        </select>
-
-        <div className={cn(
-          'flex gap-2 p-1 rounded-lg',
-          resolvedTheme === 'dark' ? 'bg-slate-800/50' : 'bg-slate-100'
-        )}>
-          {[
-            { value: 'popular', label: 'Popular' },
-            { value: 'recent', label: 'Recent' },
-            { value: 'cloned', label: 'Most Cloned' },
-          ].map((option) => (
-            <button
-              key={option.value}
-              onClick={() => setSortBy(option.value as typeof sortBy)}
-              className={cn(
-                'px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                sortBy === option.value
-                  ? 'bg-emerald-500 text-white'
-                  : resolvedTheme === 'dark'
-                    ? 'text-slate-400 hover:text-white'
-                    : 'text-slate-600 hover:text-slate-900'
-              )}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </motion.div>
-
-      {/* Results */}
-      {filteredPortfolios.length === 0 ? (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-center py-20"
-        >
-          <div className={cn(
-            'w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4',
-            resolvedTheme === 'dark' ? 'bg-slate-800' : 'bg-slate-100'
-          )}>
-            <svg className="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+    <AppLayout flush>
+      <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {/* Header */}
+        <div>
+          <div className="kicker">SCOUTING REPORT · WEEK 12</div>
+          <h1
+            className="display"
+            style={{ fontSize: 'clamp(24px, 3vw, 32px)', letterSpacing: '-0.04em', margin: '2px 0 0' }}
+          >
+            Scout
+          </h1>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--text-mute)', marginTop: 6 }}>
+            Discover top squads, clone formations that beat the index, recruit ideas from rivals.
           </div>
-          <h3 className={cn('text-lg font-semibold mb-2', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>No portfolios found</h3>
-          <p className={cn(resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>
-            {publicPortfolios.length === 0
-              ? 'Be the first to create a public portfolio!'
-              : 'Try adjusting your search or filters.'}
-          </p>
-        </motion.div>
-      ) : (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+        </div>
+
+        {/* Hero blurb */}
+        <div
+          className="stadium-card"
+          style={{ padding: '20px 24px', display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}
         >
-          {filteredPortfolios.map((portfolio, index) => (
-            <motion.div
-              key={portfolio.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 + index * 0.05 }}
-            >
-              <PortfolioCard portfolio={portfolio} />
-            </motion.div>
-          ))}
-        </motion.div>
-      )}
+          <Icon.Scout size={48} style={{ color: 'var(--pitch)', flexShrink: 0 }} />
+          <div style={{ minWidth: 240, flex: 1 }}>
+            <div className="display" style={{ fontSize: 18, letterSpacing: '-0.02em' }}>
+              {filteredPortfolios.length} public squad{filteredPortfolios.length === 1 ? '' : 's'} in the league
+            </div>
+            <div className="mono" style={{ fontSize: 11, color: 'var(--text-mute)', marginTop: 4, lineHeight: 1.5 }}>
+              Browse other managers&apos; lineups. Like a portfolio to save it. Clone a formation straight into a new squad of your own.
+            </div>
+          </div>
+        </div>
+
+        {/* Filter row */}
+        <div className="flex flex-wrap" style={{ gap: 10, alignItems: 'center' }}>
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <Input
+              placeholder="Search squads or managers…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              leftIcon={<Icon.Search size={14} />}
+            />
+          </div>
+
+          <div className="flex" style={{ gap: 6, flexWrap: 'wrap' }}>
+            <span className="kicker" style={{ alignSelf: 'center', marginRight: 4 }}>FORMATION</span>
+            {(['All', ...(Object.keys(FORMATIONS) as Formation[])] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setSelectedFormation(f as Formation | 'All')}
+                className="mono"
+                style={{
+                  padding: '6px 10px',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  background: selectedFormation === f ? 'var(--text)' : 'var(--surface)',
+                  color: selectedFormation === f ? 'var(--bg)' : 'var(--text-dim)',
+                  border: '1px solid ' + (selectedFormation === f ? 'var(--text)' : 'var(--line)'),
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                }}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex" style={{ gap: 6 }}>
+            <span className="kicker" style={{ alignSelf: 'center', marginRight: 4 }}>SORT</span>
+            {(
+              [
+                ['popular', 'Popular'],
+                ['recent', 'Recent'],
+                ['cloned', 'Most cloned'],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setSortBy(key)}
+                className="mono"
+                style={{
+                  padding: '6px 10px',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  background: sortBy === key ? 'var(--pitch)' : 'transparent',
+                  color: sortBy === key ? 'oklch(0.14 0.05 145)' : 'var(--text-dim)',
+                  border: '1px solid ' + (sortBy === key ? 'var(--pitch-deep)' : 'var(--line)'),
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Trending squads */}
+        {filteredPortfolios.length > 0 && (
+          <div
+            className="flex items-end justify-between"
+            style={{ marginTop: 4, marginBottom: 4 }}
+          >
+            <div className="display" style={{ fontSize: 18, letterSpacing: '-0.03em' }}>
+              Trending Squads
+            </div>
+            <div className="mono" style={{ fontSize: 10, color: 'var(--text-mute)', letterSpacing: '0.1em' }}>
+              {filteredPortfolios.length} RESULTS
+            </div>
+          </div>
+        )}
+
+        {/* Results */}
+        {filteredPortfolios.length === 0 ? (
+          <div
+            className="stadium-card"
+            style={{ padding: 48, textAlign: 'center', borderStyle: 'dashed' }}
+          >
+            <Icon.Scout size={40} style={{ color: 'var(--text-mute)', margin: '0 auto 12px' }} />
+            <div className="display" style={{ fontSize: 18, marginBottom: 6 }}>
+              No squads to scout
+            </div>
+            <div style={{ color: 'var(--text-dim)', fontSize: 13, maxWidth: 480, margin: '0 auto' }}>
+              {publicPortfolios.length === 0
+                ? 'Be the first to make a squad public — your XI will show up here for everyone.'
+                : 'No squads match this filter. Try a different formation or sort.'}
+            </div>
+          </div>
+        ) : (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+              gap: 14,
+            }}
+          >
+            {filteredPortfolios.map((portfolio) => (
+              <ScoutCard
+                key={portfolio.id}
+                portfolio={portfolio}
+                performance={perfMap.get(portfolio.id)?.performance}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </AppLayout>
   );
 }
+
+/* Build a Pitch lineup from a real portfolio. Maps portfolio position ids → ticker symbols. */
+function portfolioToLineup(portfolio: Portfolio): Record<string, PitchPlayer> {
+  const lineup: Record<string, PitchPlayer> = {};
+  portfolio.players.forEach((p) => {
+    if (p.asset) {
+      lineup[p.positionId.toLowerCase()] = {
+        sym: p.asset.symbol,
+        dayChangePct: p.asset.dayChangePercent,
+        weight: p.allocation,
+      };
+    }
+  });
+  return lineup;
+}
+
+/* Coerce the portfolio formation to one of the formations the Pitch component supports.
+   The Portfolio type allows 6 formations but only 3 are visualised — fall back gracefully. */
+function safeFormation(f: Formation): FormationName {
+  if (f in PITCH_FORMATIONS) return f as FormationName;
+  return '4-3-3';
+}
+
+const ScoutCard: React.FC<{ portfolio: Portfolio; performance?: PortfolioPerformance }> = ({
+  portfolio,
+  performance,
+}) => {
+  const router = useRouter();
+  const { currentUser, likePortfolio, clonePortfolio } = useStore();
+  const [isCloning, setIsCloning] = useState(false);
+  const hasLiked = currentUser ? portfolio.likes.includes(currentUser.id) : false;
+  const perf = performance || calculatePortfolioPerformance(portfolio);
+  const positive = perf.totalReturnPercent >= 0;
+
+  const lineup = useMemo(() => portfolioToLineup(portfolio), [portfolio]);
+  const formationForPitch = safeFormation(portfolio.formation);
+
+  const handleLike = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (currentUser) likePortfolio(portfolio.id);
+  };
+
+  const handleClone = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!currentUser || isCloning) return;
+    setIsCloning(true);
+    try {
+      const cloned = await clonePortfolio(portfolio.id);
+      if (cloned) router.push(`/portfolio/${cloned.id}`);
+    } finally {
+      setIsCloning(false);
+    }
+  };
+
+  return (
+    <Link
+      href={`/portfolio/${portfolio.id}`}
+      className="stadium-card"
+      style={{
+        padding: 14,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        textDecoration: 'none',
+        color: 'inherit',
+        transition: 'border-color .15s ease',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = 'var(--pitch)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = 'var(--line)';
+      }}
+    >
+      {/* Header row: name + return */}
+      <div className="flex items-start justify-between" style={{ gap: 8 }}>
+        <div style={{ minWidth: 0 }}>
+          <div
+            className="display"
+            style={{
+              fontSize: 16,
+              letterSpacing: '-0.02em',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {portfolio.name}
+          </div>
+          <div className="mono" style={{ fontSize: 10, color: 'var(--text-mute)' }}>
+            {portfolio.formation} · {getRelativeTime(portfolio.createdAt)}
+          </div>
+        </div>
+        <div
+          className="display num"
+          style={{
+            fontSize: 22,
+            color: positive ? 'var(--pitch)' : 'var(--ref-red)',
+            letterSpacing: '-0.04em',
+            flexShrink: 0,
+          }}
+        >
+          {formatPercent(perf.totalReturnPercent)}
+        </div>
+      </div>
+
+      {/* Mini tactics-pitch preview — the signature design element */}
+      <div style={{ maxWidth: 160, margin: '0 auto', width: '100%' }}>
+        <Pitch
+          formation={formationForPitch}
+          lineup={lineup}
+          variant="tactics"
+          size="sm"
+          showFormationLabel={false}
+        />
+      </div>
+
+      {/* Stats row */}
+      <div
+        className="flex justify-between"
+        style={{
+          fontSize: 10,
+          color: 'var(--text-mute)',
+          paddingTop: 10,
+          borderTop: '1px solid var(--line)',
+        }}
+      >
+        <Stat label="LIKES" value={portfolio.likes.length} />
+        <Stat label="CLONES" value={portfolio.cloneCount} />
+        <Stat label="FILLED" value={`${portfolio.players.filter((p) => p.asset).length}/11`} />
+      </div>
+
+      {/* Actions */}
+      <div className="flex" style={{ gap: 6 }}>
+        <button
+          type="button"
+          onClick={handleLike}
+          className="stadium-btn stadium-btn-ghost"
+          style={{
+            flex: 1,
+            justifyContent: 'center',
+            padding: '6px 10px',
+            fontSize: 11,
+            color: hasLiked ? 'var(--ref-red)' : undefined,
+            borderColor: hasLiked ? 'oklch(0.65 0.22 25 / 0.3)' : undefined,
+            background: hasLiked ? 'oklch(0.65 0.22 25 / 0.08)' : undefined,
+          }}
+        >
+          {hasLiked ? '♥' : '♡'} {portfolio.likes.length}
+        </button>
+        <button
+          type="button"
+          onClick={handleClone}
+          disabled={isCloning}
+          className="stadium-btn stadium-btn-primary"
+          style={{
+            flex: 1.4,
+            justifyContent: 'center',
+            padding: '6px 10px',
+            fontSize: 11,
+          }}
+        >
+          <Icon.Lineup size={12} /> {isCloning ? 'Cloning…' : 'Clone formation'}
+        </button>
+      </div>
+    </Link>
+  );
+};
+
+const Stat: React.FC<{ label: string; value: number | string }> = ({ label, value }) => (
+  <div style={{ textAlign: 'center' }}>
+    <div className="kicker" style={{ fontSize: 8 }}>{label}</div>
+    <div className="mono num" style={{ fontSize: 12, color: 'var(--text)', fontWeight: 700, marginTop: 2 }}>
+      {value}
+    </div>
+  </div>
+);

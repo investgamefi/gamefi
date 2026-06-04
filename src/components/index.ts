@@ -2,7 +2,6 @@
 export * from './ui';
 
 // Layout Components
-export { Header } from './layout/Header';
 export { Sidebar } from './layout/Sidebar';
 export { TopBar } from './layout/TopBar';
 export { AppLayout } from './layout/AppLayout';
@@ -28,7 +27,7 @@ export * from './challenge';
 
 // New Feature Components
 export { DailyReward } from './DailyReward';
-export { ThemeProvider, ThemeToggle, useTheme } from './ThemeProvider';
+export { ThemeProvider, useTheme } from './ThemeProvider';
 export { ErrorBoundary, useErrorHandler } from './ErrorBoundary';
 export { Onboarding } from './Onboarding';
 export { FeedbackWidget } from './FeedbackWidget';

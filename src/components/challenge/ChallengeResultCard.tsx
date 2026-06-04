@@ -4,185 +4,303 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Challenge, CHALLENGE_TIMEFRAMES } from '@/types';
 import { useStore } from '@/store/useStore';
-import { cn, formatPercent, formatDate } from '@/lib/utils';
+import { formatPercent, formatDate } from '@/lib/utils';
+import { Icon } from '@/components/stadium/Icon';
 
 interface ChallengeResultCardProps {
   challenge: Challenge;
 }
 
-export const ChallengeResultCard: React.FC<ChallengeResultCardProps> = ({
-  challenge,
-}) => {
+export const ChallengeResultCard: React.FC<ChallengeResultCardProps> = ({ challenge }) => {
   const { currentUser } = useStore();
 
   const isChallenger = currentUser?.id === challenge.challengerId;
   const isOpponent = currentUser?.id === challenge.opponentId;
   const isWinner = challenge.winnerId === currentUser?.id;
   const isDraw = challenge.winnerId === null && challenge.status === 'completed';
-
-  const timeframeLabel = CHALLENGE_TIMEFRAMES.find((t) => t.value === challenge.timeframe)?.label || challenge.timeframe;
-
-  // Determine if user won/lost against S&P 500
-  const sp500Winner = challenge.type === 'sp500' && challenge.winnerId === 'sp500';
   const userWonVsSp500 = challenge.type === 'sp500' && challenge.winnerId === challenge.challengerId;
+
+  const timeframeLabel =
+    CHALLENGE_TIMEFRAMES.find((t) => t.value === challenge.timeframe)?.label || challenge.timeframe;
+
+  const won = isWinner || userWonVsSp500;
+  const resultLabel = won ? 'WIN' : isDraw ? 'DRAW' : 'LOSS';
+  const resultPill = won ? 'pill pill-pitch' : isDraw ? 'pill pill-sky' : 'pill pill-red';
+  const resultStripe = won ? 'var(--pitch)' : isDraw ? 'oklch(0.75 0.14 230)' : 'var(--ref-red)';
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
-      className={cn(
-        'bg-slate-900/80 border rounded-2xl overflow-hidden transition-all duration-300',
-        isWinner || userWonVsSp500 ? 'border-emerald-500/50' : isDraw ? 'border-slate-600' : 'border-red-500/50'
-      )}
+      className="stadium-card"
+      style={{ overflow: 'hidden', position: 'relative' }}
     >
-      {/* Result Banner */}
-      <div className={cn(
-        'py-2 px-4 text-center text-sm font-medium',
-        isWinner || userWonVsSp500
-          ? 'bg-emerald-500/20 text-emerald-400'
-          : isDraw
-            ? 'bg-slate-700/50 text-slate-400'
-            : 'bg-red-500/20 text-red-400'
-      )}>
-        {isWinner || userWonVsSp500 ? (
-          <span className="flex items-center justify-center gap-2">
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-            </svg>
-            Victory! +{challenge.xpAwarded} XP
-          </span>
-        ) : isDraw ? (
-          'Draw - No XP Change'
-        ) : (
-          <span className="flex items-center justify-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-            </svg>
-            Defeat -{challenge.xpAwarded} XP
-          </span>
-        )}
-      </div>
+      {/* Result stripe at the top */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 3,
+          background: resultStripe,
+        }}
+      />
 
       {/* Header */}
-      <div className="p-4 border-b border-slate-800">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {challenge.type === 'sp500' ? (
-              <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
-                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                </svg>
-              </div>
-            ) : (
-              <div className="w-8 h-8 bg-gradient-to-br from-purple-400 to-pink-500 rounded-full flex items-center justify-center">
-                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                </svg>
-              </div>
-            )}
-            <div>
-              <h3 className="font-semibold text-white text-sm">
-                {challenge.type === 'sp500' ? 'vs S&P 500' : 'vs User'}
-              </h3>
-              <p className="text-xs text-slate-400">{timeframeLabel} Challenge</p>
+      <div
+        className="flex items-center justify-between"
+        style={{
+          padding: '12px 16px',
+          background: 'var(--surface-2)',
+          borderBottom: '1px solid var(--line)',
+          gap: 8,
+        }}
+      >
+        <div className="flex items-center" style={{ gap: 10, minWidth: 0 }}>
+          <div
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: 6,
+              background: 'var(--pitch-tint)',
+              border: '1px solid oklch(0.72 0.21 145 / 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <Icon.Trophy size={14} style={{ color: 'var(--pitch)' }} />
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div className="display" style={{ fontSize: 13, letterSpacing: '-0.01em' }}>
+              {challenge.type === 'sp500' ? 'vs S&P 500' : 'vs Manager'}
+            </div>
+            <div className="mono" style={{ fontSize: 10, color: 'var(--text-mute)' }}>
+              {timeframeLabel} · {challenge.settledAt && formatDate(challenge.settledAt)}
             </div>
           </div>
-          <span className="text-xs text-slate-500">
-            {challenge.settledAt && formatDate(challenge.settledAt)}
-          </span>
+        </div>
+        <span className={resultPill} style={{ padding: '2px 8px' }}>
+          {resultLabel}
+        </span>
+      </div>
+
+      {/* Result line */}
+      <div
+        style={{
+          padding: '10px 16px',
+          background: won
+            ? 'var(--pitch-tint)'
+            : isDraw
+            ? 'oklch(0.75 0.14 230 / 0.08)'
+            : 'oklch(0.65 0.22 25 / 0.06)',
+          borderBottom: '1px solid var(--line)',
+          textAlign: 'center',
+        }}
+      >
+        <div
+          className="mono"
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: won ? 'var(--pitch)' : isDraw ? 'oklch(0.75 0.14 230)' : 'var(--ref-red)',
+            letterSpacing: '0.12em',
+          }}
+        >
+          {won
+            ? `+${challenge.xpAwarded || 0} XP EARNED`
+            : isDraw
+            ? 'NO XP CHANGE'
+            : `−${challenge.xpAwarded || 0} XP LOST`}
         </div>
       </div>
 
-      {/* Results Comparison */}
-      <div className="p-4">
-        <div className="grid grid-cols-3 gap-2">
+      {/* Final scores */}
+      <div style={{ padding: 16 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr auto 1fr',
+            gap: 14,
+            alignItems: 'center',
+          }}
+        >
           {/* Challenger */}
-          <div className={cn(
-            'text-center p-3 rounded-xl',
-            challenge.winnerId === challenge.challengerId ? 'bg-emerald-500/10' : 'bg-slate-800/50'
-          )}>
+          <div style={{ textAlign: 'center' }}>
             <img
               src={challenge.challengerAvatar || '/default-avatar.png'}
               alt={challenge.challengerUsername}
-              className="w-10 h-10 rounded-full mx-auto mb-2"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 4,
+                border:
+                  '1px solid ' +
+                  (challenge.winnerId === challenge.challengerId
+                    ? 'var(--pitch)'
+                    : 'var(--line-2)'),
+                objectFit: 'cover',
+                margin: '0 auto 6px',
+              }}
             />
-            <p className="text-xs font-medium text-white truncate">
+            <div
+              className="display"
+              style={{
+                fontSize: 11,
+                letterSpacing: '-0.01em',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
               {isChallenger ? 'You' : challenge.challengerUsername}
-            </p>
-            <p className={cn(
-              'text-lg font-bold mt-1',
-              (challenge.challengerReturnPercent || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
-            )}>
+            </div>
+            <div
+              className="display num"
+              style={{
+                fontSize: 20,
+                marginTop: 4,
+                color: (challenge.challengerReturnPercent || 0) >= 0 ? 'var(--pitch)' : 'var(--ref-red)',
+                letterSpacing: '-0.03em',
+              }}
+            >
               {formatPercent(challenge.challengerReturnPercent || 0)}
-            </p>
+            </div>
             {challenge.winnerId === challenge.challengerId && (
-              <span className="inline-block mt-1 text-xs text-emerald-400">Winner</span>
+              <div className="mono" style={{ fontSize: 9, color: 'var(--pitch)', marginTop: 2, letterSpacing: '0.12em' }}>
+                WINNER
+              </div>
             )}
           </div>
 
-          {/* VS */}
-          <div className="flex items-center justify-center">
-            <div className="text-center">
-              <span className="text-slate-500 text-sm">VS</span>
-              <div className="mt-2 text-xs text-slate-400">
-                {challenge.startDate && (
-                  <p>{formatDate(challenge.startDate)}</p>
-                )}
-                <p>to</p>
-                {challenge.endDate && (
-                  <p>{formatDate(challenge.endDate)}</p>
-                )}
-              </div>
+          {/* Center divider */}
+          <div style={{ textAlign: 'center' }}>
+            <div
+              className="display"
+              style={{ fontSize: 12, color: 'var(--text-mute)', letterSpacing: '0.2em' }}
+            >
+              VS
+            </div>
+            <div
+              className="mono"
+              style={{
+                fontSize: 9,
+                color: 'var(--text-mute)',
+                marginTop: 4,
+                letterSpacing: '0.08em',
+              }}
+            >
+              {challenge.startDate && formatDate(challenge.startDate).toUpperCase()}
+              <br />→ {challenge.endDate && formatDate(challenge.endDate).toUpperCase()}
             </div>
           </div>
 
           {/* Opponent */}
-          <div className={cn(
-            'text-center p-3 rounded-xl',
-            challenge.winnerId === challenge.opponentId || challenge.winnerId === 'sp500' ? 'bg-emerald-500/10' : 'bg-slate-800/50'
-          )}>
+          <div style={{ textAlign: 'center' }}>
             {challenge.type === 'sp500' ? (
-              <>
-                <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full mx-auto mb-2 flex items-center justify-center">
-                  <span className="text-[8px] font-bold text-white">SPY</span>
-                </div>
-                <p className="text-xs font-medium text-white">S&P 500</p>
-              </>
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 4,
+                  background: 'var(--whistle)',
+                  color: 'var(--ink)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 6px',
+                  fontFamily: 'var(--font-display)',
+                  fontWeight: 700,
+                  fontSize: 10,
+                  border: '1px solid ' + (challenge.winnerId === 'sp500' ? 'var(--pitch)' : 'transparent'),
+                }}
+              >
+                SPY
+              </div>
             ) : (
-              <>
-                <img
-                  src={challenge.opponentAvatar || '/default-avatar.png'}
-                  alt={challenge.opponentUsername}
-                  className="w-10 h-10 rounded-full mx-auto mb-2"
-                />
-                <p className="text-xs font-medium text-white truncate">
-                  {isOpponent ? 'You' : challenge.opponentUsername}
-                </p>
-              </>
+              <img
+                src={challenge.opponentAvatar || '/default-avatar.png'}
+                alt={challenge.opponentUsername}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 4,
+                  border:
+                    '1px solid ' +
+                    (challenge.winnerId === challenge.opponentId
+                      ? 'var(--pitch)'
+                      : 'var(--line-2)'),
+                  objectFit: 'cover',
+                  margin: '0 auto 6px',
+                }}
+              />
             )}
-            <p className={cn(
-              'text-lg font-bold mt-1',
-              (challenge.opponentReturnPercent || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
-            )}>
+            <div
+              className="display"
+              style={{
+                fontSize: 11,
+                letterSpacing: '-0.01em',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {challenge.type === 'sp500'
+                ? 'S&P 500'
+                : isOpponent
+                ? 'You'
+                : challenge.opponentUsername}
+            </div>
+            <div
+              className="display num"
+              style={{
+                fontSize: 20,
+                marginTop: 4,
+                color: (challenge.opponentReturnPercent || 0) >= 0 ? 'var(--pitch)' : 'var(--ref-red)',
+                letterSpacing: '-0.03em',
+              }}
+            >
               {formatPercent(challenge.opponentReturnPercent || 0)}
-            </p>
+            </div>
             {(challenge.winnerId === challenge.opponentId || challenge.winnerId === 'sp500') && (
-              <span className="inline-block mt-1 text-xs text-emerald-400">Winner</span>
+              <div
+                className="mono"
+                style={{ fontSize: 9, color: 'var(--pitch)', marginTop: 2, letterSpacing: '0.12em' }}
+              >
+                WINNER
+              </div>
             )}
           </div>
         </div>
 
-        {/* Performance Difference */}
-        <div className="mt-4 pt-4 border-t border-slate-800 text-center">
-          <p className="text-xs text-slate-400">Performance Difference</p>
-          <p className={cn(
-            'text-lg font-bold',
-            ((challenge.challengerReturnPercent || 0) - (challenge.opponentReturnPercent || 0)) >= 0
-              ? 'text-emerald-400'
-              : 'text-red-400'
-          )}>
-            {formatPercent((challenge.challengerReturnPercent || 0) - (challenge.opponentReturnPercent || 0))}
-          </p>
+        {/* Performance diff */}
+        <div
+          style={{
+            marginTop: 14,
+            paddingTop: 12,
+            borderTop: '1px solid var(--line)',
+            textAlign: 'center',
+          }}
+        >
+          <div className="kicker">PERFORMANCE DIFFERENCE</div>
+          <div
+            className="display num"
+            style={{
+              fontSize: 18,
+              marginTop: 4,
+              color:
+                (challenge.challengerReturnPercent || 0) - (challenge.opponentReturnPercent || 0) >= 0
+                  ? 'var(--pitch)'
+                  : 'var(--ref-red)',
+              letterSpacing: '-0.03em',
+            }}
+          >
+            {formatPercent(
+              (challenge.challengerReturnPercent || 0) - (challenge.opponentReturnPercent || 0),
+            )}
+          </div>
         </div>
       </div>
     </motion.div>

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Button, Input } from '@/components/ui';
+import { Icon } from '@/components/stadium/Icon';
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -25,39 +26,21 @@ function ResetPasswordForm() {
       setError('Invalid reset link. Please request a new password reset.');
       return;
     }
-
-    if (!password) {
-      setError('Please enter a new password');
-      return;
-    }
-
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
+    if (!password) return setError('Please enter a new password');
+    if (password.length < 6) return setError('Password must be at least 6 characters');
+    if (password !== confirmPassword) return setError('Passwords do not match');
 
     setIsLoading(true);
-
     try {
       const response = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, newPassword: password }),
       });
-
       const result = await response.json();
-
       if (result.success) {
         setSuccess(true);
-        // Redirect to login after 3 seconds
-        setTimeout(() => {
-          router.push('/');
-        }, 3000);
+        setTimeout(() => router.push('/'), 3000);
       } else {
         setError(result.error || 'Failed to reset password');
       }
@@ -70,18 +53,32 @@ function ResetPasswordForm() {
 
   if (!token) {
     return (
-      <div className="text-center">
-        <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-          <svg className="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
+      <div style={{ textAlign: 'center' }}>
+        <div
+          style={{
+            width: 56,
+            height: 56,
+            margin: '0 auto 14px',
+            borderRadius: 10,
+            background: 'oklch(0.65 0.22 25 / 0.08)',
+            border: '1px solid oklch(0.65 0.22 25 / 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Icon.Close size={26} style={{ color: 'var(--ref-red)' }} />
         </div>
-        <h2 className="text-xl font-semibold text-white mb-2">Invalid Reset Link</h2>
-        <p className="text-slate-400 text-sm mb-6">
+        <div className="display" style={{ fontSize: 18, letterSpacing: '-0.02em', marginBottom: 6 }}>
+          Invalid reset link
+        </div>
+        <p style={{ color: 'var(--text-dim)', fontSize: 13, marginBottom: 18, lineHeight: 1.55 }}>
           This password reset link is invalid or has expired. Please request a new one.
         </p>
-        <Link href="/forgot-password">
-          <Button>Request New Reset Link</Button>
+        <Link href="/forgot-password" style={{ textDecoration: 'none' }}>
+          <Button style={{ width: '100%', justifyContent: 'center' }}>
+            <Icon.Bell size={14} /> Request a new link
+          </Button>
         </Link>
       </div>
     );
@@ -89,82 +86,107 @@ function ResetPasswordForm() {
 
   if (success) {
     return (
-      <div className="text-center">
-        <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-          <svg className="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+      <div style={{ textAlign: 'center' }}>
+        <div
+          style={{
+            width: 56,
+            height: 56,
+            margin: '0 auto 14px',
+            borderRadius: 10,
+            background: 'var(--pitch-tint)',
+            border: '1px solid oklch(0.72 0.21 145 / 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--pitch)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h2 className="text-xl font-semibold text-white mb-2">Password Reset!</h2>
-        <p className="text-slate-400 text-sm mb-4">
-          Your password has been successfully reset. Redirecting to login...
+        <div className="display" style={{ fontSize: 18, letterSpacing: '-0.02em', marginBottom: 6 }}>
+          Password reset
+        </div>
+        <p style={{ color: 'var(--text-dim)', fontSize: 13, marginBottom: 18, lineHeight: 1.55 }}>
+          Your password has been reset successfully. Redirecting you to sign in…
         </p>
-        <div className="w-8 h-8 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mx-auto" />
+        <div className="stadium-spinner" style={{ width: 24, height: 24, margin: '0 auto' }} />
       </div>
     );
   }
 
   return (
     <>
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-white mb-2">Set new password</h2>
-        <p className="text-slate-400 text-sm">
+      <div style={{ marginBottom: 16 }}>
+        <div className="kicker" style={{ marginBottom: 2 }}>SECURE A NEW KEY</div>
+        <div className="display" style={{ fontSize: 18, letterSpacing: '-0.02em' }}>
+          Set new password
+        </div>
+        <p style={{ color: 'var(--text-dim)', fontSize: 12, margin: 0, marginTop: 4, lineHeight: 1.5 }}>
           Your new password must be at least 6 characters long.
         </p>
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-          <p className="text-sm text-red-400">{error}</p>
+        <div
+          className="stadium-card"
+          style={{
+            padding: '10px 12px',
+            marginBottom: 14,
+            background: 'oklch(0.65 0.22 25 / 0.08)',
+            borderColor: 'oklch(0.65 0.22 25 / 0.3)',
+          }}
+        >
+          <p
+            className="mono"
+            style={{ fontSize: 11, color: 'var(--ref-red)', margin: 0, letterSpacing: '0.02em' }}
+          >
+            {error}
+          </p>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form
+        onSubmit={handleSubmit}
+        style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+      >
         <Input
           label="New Password"
           type="password"
-          placeholder="Enter your new password"
+          placeholder="At least 6 characters"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          leftIcon={
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-          }
+          leftIcon={<Icon.Bolt size={14} />}
         />
-
         <Input
           label="Confirm Password"
           type="password"
           placeholder="Confirm your new password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
-          leftIcon={
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-          }
+          leftIcon={<Icon.Bolt size={14} />}
         />
-
-        <Button
-          type="submit"
-          className="w-full"
-          size="lg"
-          isLoading={isLoading}
-        >
-          {isLoading ? 'Resetting...' : 'Reset Password'}
+        <Button type="submit" isLoading={isLoading} style={{ width: '100%', justifyContent: 'center' }}>
+          {isLoading ? 'Resetting…' : 'Reset password'}
         </Button>
       </form>
 
-      <div className="mt-6 text-center">
+      <div style={{ marginTop: 18, textAlign: 'center' }}>
         <Link
           href="/"
-          className="inline-flex items-center text-slate-400 hover:text-slate-300 text-sm"
+          className="mono"
+          style={{
+            color: 'var(--text-dim)',
+            fontSize: 11,
+            textDecoration: 'none',
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
         >
-          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          Back to login
+          <Icon.Arrow size={12} style={{ transform: 'rotate(180deg)' }} /> BACK TO LOGIN
         </Link>
       </div>
     </>
@@ -173,40 +195,97 @@ function ResetPasswordForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
-      {/* Background Effects */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl" />
-      </div>
+    <div
+      className="stadium-root"
+      data-theme="dark"
+      style={{
+        minHeight: '100vh',
+        background: 'var(--bg)',
+        color: 'var(--text)',
+        position: 'relative',
+        overflow: 'hidden',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundImage:
+            'linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px)',
+          backgroundSize: '64px 64px',
+          opacity: 0.35,
+          maskImage: 'radial-gradient(ellipse at center, #000 30%, transparent 70%)',
+          WebkitMaskImage: 'radial-gradient(ellipse at center, #000 30%, transparent 70%)',
+          pointerEvents: 'none',
+        }}
+      />
 
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="relative w-full max-w-md"
+        style={{ position: 'relative', width: '100%', maxWidth: 420 }}
       >
-        {/* Logo and Title */}
-        <div className="text-center mb-8">
-          <Link href="/">
-            <motion.div
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              transition={{ type: 'spring', duration: 0.6 }}
-              className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center shadow-2xl shadow-emerald-500/30"
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <Link
+            href="/"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 10,
+              textDecoration: 'none',
+              marginBottom: 18,
+            }}
+          >
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 8,
+                background: 'var(--text)',
+                color: 'var(--bg)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
             >
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </motion.div>
+              <Icon.Logo size={28} />
+            </div>
+            <div style={{ textAlign: 'left' }}>
+              <div className="display" style={{ fontSize: 18, letterSpacing: '-0.03em', color: 'var(--text)' }}>
+                GAMEFI
+              </div>
+              <div className="kicker" style={{ fontSize: 9, marginTop: -2 }}>
+                INVEST · LEAGUE
+              </div>
+            </div>
           </Link>
-          <h1 className="text-3xl font-bold text-white mb-2">Reset Password</h1>
-          <p className="text-slate-400">Create a new password for your account</p>
+          <div className="kicker" style={{ marginBottom: 4 }}>NEW SET OF KEYS</div>
+          <h1
+            className="display"
+            style={{
+              fontSize: 28,
+              letterSpacing: '-0.04em',
+              margin: 0,
+              color: 'var(--text)',
+            }}
+          >
+            Reset password
+          </h1>
         </div>
 
-        {/* Card */}
-        <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-8 shadow-2xl">
-          <Suspense fallback={<div className="text-center text-slate-400">Loading...</div>}>
+        <div className="stadium-card" style={{ padding: 24, background: 'var(--surface)' }}>
+          <Suspense
+            fallback={
+              <div className="kicker" style={{ textAlign: 'center', padding: 24 }}>
+                LOADING…
+              </div>
+            }
+          >
             <ResetPasswordForm />
           </Suspense>
         </div>

@@ -2,30 +2,30 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { AnimatePresence } from 'framer-motion';
 import { useStore } from '@/store/useStore';
-import { useTheme } from '@/components/ThemeProvider';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { BetaBanner } from '../BetaBanner';
 import { FeedbackWidget } from '../FeedbackWidget';
-import { cn } from '@/lib/utils';
 
 interface AppLayoutProps {
   children: React.ReactNode;
+  /**
+   * When true, the page renders inside a flush container (no auto max-width/padding wrapper).
+   * The new stadium designs (Matchday, Squads) are pre-padded internally and want this.
+   */
+  flush?: boolean;
 }
 
-export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
+export const AppLayout: React.FC<AppLayoutProps> = ({ children, flush = false }) => {
   const router = useRouter();
   const pathname = usePathname();
   const { isAuthenticated, isLoading, loadData } = useStore();
-  const { resolvedTheme } = useTheme();
 
   // Sidebar state
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  // Load collapsed state from localStorage
   useEffect(() => {
     const saved = localStorage.getItem('sidebar-collapsed');
     if (saved !== null) {
@@ -33,51 +33,47 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     }
   }, []);
 
-  // Save collapsed state to localStorage
   const handleToggle = () => {
     const newState = !isCollapsed;
     setIsCollapsed(newState);
     localStorage.setItem('sidebar-collapsed', String(newState));
   };
 
-  // Close mobile sidebar on route change
   useEffect(() => {
     setIsMobileOpen(false);
   }, [pathname]);
 
-  // Load data on mount
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  // Redirect to login if not authenticated
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push('/');
     }
   }, [isAuthenticated, isLoading, router]);
 
-  // Show loading state
   if (isLoading || !isAuthenticated) {
     return (
-      <div className={cn(
-        'min-h-screen flex items-center justify-center transition-colors',
-        resolvedTheme === 'dark' ? 'bg-slate-950' : 'bg-slate-100'
-      )}>
-        <div className="w-16 h-16 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+      <div
+        className="stadium-root min-h-screen flex items-center justify-center"
+        style={{ background: 'var(--bg)' }}
+      >
+        <div className="flex flex-col items-center gap-4">
+          <div className="stadium-spinner" />
+          <span className="kicker">LOADING MATCH DATA…</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className={cn(
-      'min-h-screen transition-colors duration-300',
-      resolvedTheme === 'dark' ? 'bg-slate-950' : 'bg-slate-100'
-    )}>
-      {/* Beta Banner */}
+    <div
+      className="stadium-root min-h-screen"
+      style={{ background: 'var(--bg)', color: 'var(--text)' }}
+    >
       <BetaBanner />
 
-      {/* Sidebar */}
       <Sidebar
         isCollapsed={isCollapsed}
         onToggle={handleToggle}
@@ -85,26 +81,25 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         onMobileClose={() => setIsMobileOpen(false)}
       />
 
-      {/* TopBar */}
       <TopBar
         onMenuClick={() => setIsMobileOpen(true)}
         sidebarCollapsed={isCollapsed}
       />
 
-      {/* Main Content */}
       <main
-        className={cn(
-          'min-h-screen pt-16 transition-all duration-300',
-          'lg:pl-64',
-          isCollapsed && 'lg:pl-[72px]'
-        )}
+        className={`min-h-screen pt-16 transition-all duration-200 ${
+          isCollapsed ? 'lg:pl-[72px]' : 'lg:pl-[220px]'
+        }`}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {children}
-        </div>
+        {flush ? (
+          children
+        ) : (
+          <div className="max-w-7xl mx-auto" style={{ padding: '24px 24px 32px' }}>
+            {children}
+          </div>
+        )}
       </main>
 
-      {/* Feedback Widget */}
       <FeedbackWidget />
     </div>
   );

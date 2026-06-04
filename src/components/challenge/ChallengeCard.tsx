@@ -4,20 +4,26 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Challenge, CHALLENGE_XP, CHALLENGE_TIMEFRAMES } from '@/types';
 import { useStore } from '@/store/useStore';
-import { cn, formatPercent, getRelativeTime } from '@/lib/utils';
-import { Button } from '@/components/ui';
-import { useTheme } from '@/components/ThemeProvider';
+import { formatPercent, getRelativeTime } from '@/lib/utils';
+import { Icon } from '@/components/stadium/Icon';
 
 interface ChallengeCardProps {
   challenge: Challenge;
   showActions?: boolean;
 }
 
+const STATUS_PILL: Record<Challenge['status'], { label: string; cls: string }> = {
+  pending: { label: 'PENDING', cls: 'pill pill-whistle' },
+  active: { label: 'LIVE', cls: 'pill pill-red' },
+  completed: { label: 'FT', cls: 'pill pill-pitch' },
+  declined: { label: 'DECLINED', cls: 'pill' },
+  cancelled: { label: 'CANCELLED', cls: 'pill' },
+};
+
 export const ChallengeCard: React.FC<ChallengeCardProps> = ({
   challenge,
   showActions = true,
 }) => {
-  const { resolvedTheme } = useTheme();
   const { currentUser, acceptChallenge, declineChallenge, cancelChallenge, portfolios } = useStore();
   const [isLoading, setIsLoading] = React.useState(false);
   const [selectedPortfolioId, setSelectedPortfolioId] = React.useState<string>('');
@@ -27,213 +33,277 @@ export const ChallengeCard: React.FC<ChallengeCardProps> = ({
   const isPending = challenge.status === 'pending';
   const isActive = challenge.status === 'active';
   const xpAtStake = challenge.type === 'sp500' ? CHALLENGE_XP.VS_SP500 : CHALLENGE_XP.VS_USER;
+  const timeframeLabel =
+    CHALLENGE_TIMEFRAMES.find((t) => t.value === challenge.timeframe)?.label || challenge.timeframe;
+  const statusInfo = STATUS_PILL[challenge.status];
 
-  const timeframeLabel = CHALLENGE_TIMEFRAMES.find((t) => t.value === challenge.timeframe)?.label || challenge.timeframe;
-
-  // Calculate time remaining for active challenges
   const getTimeRemaining = () => {
     if (!challenge.endDate) return null;
-    const end = new Date(challenge.endDate).getTime();
-    const now = Date.now();
-    const diff = end - now;
-
-    if (diff <= 0) return 'Ended';
-
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-
-    if (days > 0) return `${days}d ${hours}h left`;
-    return `${hours}h left`;
+    const ms = new Date(challenge.endDate).getTime() - Date.now();
+    if (ms <= 0) return 'Closing';
+    const days = Math.floor(ms / 86400000);
+    const hours = Math.floor((ms % 86400000) / 3600000);
+    return days > 0 ? `${days}d ${hours}h` : `${hours}h`;
   };
 
   const handleAccept = async () => {
     if (!selectedPortfolioId) return;
     setIsLoading(true);
-    await acceptChallenge(challenge.id, selectedPortfolioId);
-    setIsLoading(false);
+    try {
+      await acceptChallenge(challenge.id, selectedPortfolioId);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleDecline = async () => {
     setIsLoading(true);
-    await declineChallenge(challenge.id);
-    setIsLoading(false);
+    try {
+      await declineChallenge(challenge.id);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCancel = async () => {
     setIsLoading(true);
-    await cancelChallenge(challenge.id);
-    setIsLoading(false);
-  };
-
-  const getStatusBadge = () => {
-    switch (challenge.status) {
-      case 'pending':
-        return (
-          <span className="px-2 py-1 bg-yellow-500/10 text-yellow-400 text-xs font-medium rounded-lg">
-            Pending
-          </span>
-        );
-      case 'active':
-        return (
-          <span className="px-2 py-1 bg-blue-500/10 text-blue-400 text-xs font-medium rounded-lg">
-            Active
-          </span>
-        );
-      case 'completed':
-        return (
-          <span className="px-2 py-1 bg-emerald-500/10 text-emerald-400 text-xs font-medium rounded-lg">
-            Completed
-          </span>
-        );
-      case 'declined':
-        return (
-          <span className="px-2 py-1 bg-red-500/10 text-red-400 text-xs font-medium rounded-lg">
-            Declined
-          </span>
-        );
-      case 'cancelled':
-        return (
-          <span className="px-2 py-1 bg-slate-500/10 text-slate-400 text-xs font-medium rounded-lg">
-            Cancelled
-          </span>
-        );
+    try {
+      await cancelChallenge(challenge.id);
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  const myReturn = isChallenger ? challenge.challengerReturnPercent : challenge.opponentReturnPercent;
+  const theirReturn = isChallenger ? challenge.opponentReturnPercent : challenge.challengerReturnPercent;
+  const leading = (myReturn ?? 0) > (theirReturn ?? 0);
+  const fmt = (n: number | null) => (n == null ? '—' : `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`);
+  const opponentName =
+    challenge.type === 'sp500'
+      ? 'S&P 500'
+      : isChallenger
+      ? challenge.opponentUsername || 'TBD'
+      : challenge.challengerUsername || 'Challenger';
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
-      className={cn(
-        'rounded-2xl overflow-hidden transition-all duration-300 border',
-        resolvedTheme === 'dark'
-          ? 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
-          : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
-      )}
+      className="stadium-card"
+      style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
     >
-      {/* Header */}
-      <div className={cn(
-        'p-4 border-b',
-        resolvedTheme === 'dark' ? 'border-slate-800' : 'border-slate-200'
-      )}>
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
+      {/* Header strip */}
+      <div
+        className="flex items-center justify-between"
+        style={{
+          padding: '12px 16px',
+          background: 'var(--surface-2)',
+          borderBottom: '1px solid var(--line)',
+          gap: 8,
+        }}
+      >
+        <div className="flex items-center" style={{ gap: 10, minWidth: 0 }}>
+          <div
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: 6,
+              background: 'var(--pitch-tint)',
+              border: '1px solid oklch(0.72 0.21 145 / 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
             {challenge.type === 'sp500' ? (
-              <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                </svg>
-              </div>
+              <Icon.Bolt size={14} style={{ color: 'var(--pitch)' }} />
             ) : (
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-500 rounded-full flex items-center justify-center">
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                </svg>
-              </div>
+              <Icon.Profile size={14} style={{ color: 'var(--pitch)' }} />
             )}
-            <div>
-              <h3 className={cn('font-semibold', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>
-                {challenge.type === 'sp500' ? 'vs S&P 500' : 'vs User'}
-              </h3>
-              <p className={cn('text-sm', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>{timeframeLabel} Challenge</p>
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div
+              className="display"
+              style={{ fontSize: 13, letterSpacing: '-0.01em' }}
+            >
+              {challenge.type === 'sp500' ? 'vs S&P 500' : 'vs Manager'}
+            </div>
+            <div className="mono" style={{ fontSize: 10, color: 'var(--text-mute)' }}>
+              {timeframeLabel}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {getStatusBadge()}
-          </div>
         </div>
+        <span className={statusInfo.cls} style={{ padding: '2px 6px', flexShrink: 0 }}>
+          {isActive && <span className="live-dot" />}
+          {statusInfo.label}
+        </span>
       </div>
 
-      {/* VS Display */}
-      <div className="p-4">
-        <div className="flex items-center justify-between gap-4">
-          {/* Challenger */}
-          <div className="flex-1 text-center">
+      {/* Score / matchup */}
+      <div style={{ padding: 16 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr auto 1fr',
+            gap: 14,
+            alignItems: 'center',
+          }}
+        >
+          {/* You */}
+          <div style={{ textAlign: 'center' }}>
             <img
               src={challenge.challengerAvatar || '/default-avatar.png'}
               alt={challenge.challengerUsername}
-              className="w-12 h-12 rounded-full mx-auto mb-2 ring-2 ring-emerald-500/30"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 4,
+                border: '1px solid var(--line-2)',
+                objectFit: 'cover',
+                margin: '0 auto 6px',
+              }}
             />
-            <p className={cn('text-sm font-medium truncate', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>
+            <div
+              className="display"
+              style={{
+                fontSize: 11,
+                letterSpacing: '-0.01em',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
               {isChallenger ? 'You' : challenge.challengerUsername}
-            </p>
-            <p className={cn('text-xs truncate', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>{challenge.challengerPortfolioName}</p>
+            </div>
+            <div className="mono" style={{ fontSize: 9, color: 'var(--text-mute)', marginTop: 2 }}>
+              {challenge.challengerPortfolioName}
+            </div>
             {isActive && challenge.challengerReturnPercent !== null && (
-              <p className={cn(
-                'text-sm font-semibold mt-1',
-                challenge.challengerReturnPercent >= 0 ? 'text-emerald-400' : 'text-red-400'
-              )}>
-                {formatPercent(challenge.challengerReturnPercent)}
-              </p>
+              <div
+                className="display num"
+                style={{
+                  fontSize: 18,
+                  marginTop: 4,
+                  color: challenge.challengerReturnPercent >= 0 ? 'var(--pitch)' : 'var(--ref-red)',
+                  letterSpacing: '-0.03em',
+                }}
+              >
+                {fmt(challenge.challengerReturnPercent)}
+              </div>
             )}
           </div>
 
           {/* VS */}
-          <div className="flex-shrink-0">
-            <div className={cn(
-              'w-12 h-12 rounded-full flex items-center justify-center',
-              resolvedTheme === 'dark' ? 'bg-slate-800' : 'bg-slate-100'
-            )}>
-              <span className={cn('text-sm font-bold', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>VS</span>
+          <div style={{ textAlign: 'center' }}>
+            <div
+              className="display"
+              style={{
+                fontSize: 12,
+                color: 'var(--text-mute)',
+                letterSpacing: '0.2em',
+              }}
+            >
+              VS
             </div>
-            <p className="text-xs text-slate-500 text-center mt-1">{xpAtStake} XP</p>
+            <div className="kicker" style={{ marginTop: 4 }}>
+              +{xpAtStake} XP
+            </div>
           </div>
 
           {/* Opponent */}
-          <div className="flex-1 text-center">
+          <div style={{ textAlign: 'center' }}>
             {challenge.type === 'sp500' ? (
-              <>
-                <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full mx-auto mb-2 flex items-center justify-center">
-                  <span className="text-xs font-bold text-white">SPY</span>
-                </div>
-                <p className={cn('text-sm font-medium', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>S&P 500</p>
-                <p className={cn('text-xs', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>Index</p>
-                {isActive && challenge.opponentReturnPercent !== null && (
-                  <p className={cn(
-                    'text-sm font-semibold mt-1',
-                    challenge.opponentReturnPercent >= 0 ? 'text-emerald-400' : 'text-red-400'
-                  )}>
-                    {formatPercent(challenge.opponentReturnPercent)}
-                  </p>
-                )}
-              </>
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 4,
+                  background: 'var(--whistle)',
+                  color: 'var(--ink)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 6px',
+                  fontFamily: 'var(--font-display)',
+                  fontWeight: 700,
+                  fontSize: 10,
+                }}
+              >
+                SPY
+              </div>
             ) : (
-              <>
-                <img
-                  src={challenge.opponentAvatar || '/default-avatar.png'}
-                  alt={challenge.opponentUsername}
-                  className="w-12 h-12 rounded-full mx-auto mb-2 ring-2 ring-purple-500/30"
-                />
-                <p className={cn('text-sm font-medium truncate', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>
-                  {isOpponent ? 'You' : challenge.opponentUsername}
-                </p>
-                <p className={cn('text-xs truncate', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>{challenge.opponentPortfolioName}</p>
-                {isActive && challenge.opponentReturnPercent !== null && (
-                  <p className={cn(
-                    'text-sm font-semibold mt-1',
-                    challenge.opponentReturnPercent >= 0 ? 'text-emerald-400' : 'text-red-400'
-                  )}>
-                    {formatPercent(challenge.opponentReturnPercent)}
-                  </p>
-                )}
-              </>
+              <img
+                src={challenge.opponentAvatar || '/default-avatar.png'}
+                alt={challenge.opponentUsername}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 4,
+                  border: '1px solid var(--line-2)',
+                  objectFit: 'cover',
+                  margin: '0 auto 6px',
+                }}
+              />
+            )}
+            <div
+              className="display"
+              style={{
+                fontSize: 11,
+                letterSpacing: '-0.01em',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {opponentName}
+            </div>
+            <div className="mono" style={{ fontSize: 9, color: 'var(--text-mute)', marginTop: 2 }}>
+              {challenge.type === 'sp500' ? 'Market Index' : challenge.opponentPortfolioName || 'Rival'}
+            </div>
+            {isActive && challenge.opponentReturnPercent !== null && (
+              <div
+                className="display num"
+                style={{
+                  fontSize: 18,
+                  marginTop: 4,
+                  color: challenge.opponentReturnPercent >= 0 ? 'var(--pitch)' : 'var(--ref-red)',
+                  letterSpacing: '-0.03em',
+                }}
+              >
+                {fmt(challenge.opponentReturnPercent)}
+              </div>
             )}
           </div>
         </div>
-      </div>
 
-      {/* Time/Status Info */}
-      <div className="px-4 pb-2">
-        <div className={cn(
-          'flex items-center justify-between py-3 border-t text-sm',
-          resolvedTheme === 'dark' ? 'border-slate-800' : 'border-slate-200'
-        )}>
-          <span className={cn(resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>
-            {isActive ? getTimeRemaining() : `Created ${getRelativeTime(challenge.createdAt)}`}
+        {/* Meta line */}
+        <div
+          className="flex items-center justify-between"
+          style={{
+            paddingTop: 12,
+            marginTop: 12,
+            borderTop: '1px solid var(--line)',
+            gap: 8,
+            flexWrap: 'wrap',
+          }}
+        >
+          <span className="mono" style={{ fontSize: 10, color: 'var(--text-mute)' }}>
+            {isActive
+              ? `${getTimeRemaining()} LEFT`
+              : `CREATED ${getRelativeTime(challenge.createdAt).toUpperCase()}`}
           </span>
-          {challenge.startDate && (
-            <span className="text-slate-500">
-              Started {new Date(challenge.startDate).toLocaleDateString()}
+          {isActive && (
+            <span
+              className="mono num"
+              style={{
+                fontSize: 10,
+                color: leading ? 'var(--pitch)' : (myReturn != null && theirReturn != null ? 'var(--ref-red)' : 'var(--text-mute)'),
+                fontWeight: 700,
+                letterSpacing: '0.1em',
+              }}
+            >
+              {leading ? 'LEADING' : myReturn != null && theirReturn != null ? 'BEHIND' : 'WAITING'}
             </span>
           )}
         </div>
@@ -241,67 +311,84 @@ export const ChallengeCard: React.FC<ChallengeCardProps> = ({
 
       {/* Actions */}
       {showActions && (
-        <div className={cn(
-          'px-4 pb-4 pt-2 border-t',
-          resolvedTheme === 'dark' ? 'border-slate-800' : 'border-slate-200'
-        )}>
-          {/* Pending invite - show accept/decline for opponent */}
-          {isPending && isOpponent && (
-            <div className="space-y-3">
+        <>
+          {isPending && isOpponent && challenge.type === 'user' && (
+            <div
+              style={{
+                padding: 14,
+                borderTop: '1px solid var(--line)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
               <select
                 value={selectedPortfolioId}
                 onChange={(e) => setSelectedPortfolioId(e.target.value)}
-                className={cn(
-                  'w-full px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-emerald-500 border',
-                  resolvedTheme === 'dark'
-                    ? 'bg-slate-800 border-slate-700 text-white'
-                    : 'bg-white border-slate-300 text-slate-900'
-                )}
+                style={{
+                  width: '100%',
+                  padding: '8px 10px',
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--line)',
+                  borderRadius: 6,
+                  color: 'var(--text)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11,
+                  cursor: 'pointer',
+                  outline: 'none',
+                }}
               >
-                <option value="">Select your portfolio</option>
+                <option value="">Pick your squad…</option>
                 {portfolios.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
                 ))}
               </select>
-              <div className="flex gap-2">
-                <Button
+              <div className="flex" style={{ gap: 6 }}>
+                <button
+                  type="button"
                   onClick={handleAccept}
                   disabled={isLoading || !selectedPortfolioId}
-                  className="flex-1"
+                  className="stadium-btn stadium-btn-primary"
+                  style={{ flex: 1, justifyContent: 'center', padding: '6px 10px', fontSize: 11 }}
                 >
                   Accept
-                </Button>
-                <Button
+                </button>
+                <button
+                  type="button"
                   onClick={handleDecline}
                   disabled={isLoading}
-                  variant="ghost"
-                  className="flex-1"
+                  className="stadium-btn stadium-btn-ghost"
+                  style={{ flex: 1, justifyContent: 'center', padding: '6px 10px', fontSize: 11 }}
                 >
                   Decline
-                </Button>
+                </button>
               </div>
             </div>
           )}
 
-          {/* Pending - show cancel for challenger */}
           {isPending && isChallenger && (
-            <Button
-              onClick={handleCancel}
-              disabled={isLoading}
-              variant="ghost"
-              className="w-full"
+            <div
+              style={{
+                padding: '10px 14px',
+                borderTop: '1px solid var(--line)',
+                display: 'flex',
+                justifyContent: 'flex-end',
+              }}
             >
-              Cancel Challenge
-            </Button>
-          )}
-
-          {/* Active - show progress indicator */}
-          {isActive && (
-            <div className={cn('text-center text-sm', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>
-              Challenge in progress...
+              <button
+                type="button"
+                onClick={handleCancel}
+                disabled={isLoading}
+                className="stadium-btn stadium-btn-ghost"
+                style={{ padding: '6px 12px', fontSize: 11 }}
+              >
+                Cancel fixture
+              </button>
             </div>
           )}
-        </div>
+        </>
       )}
     </motion.div>
   );

@@ -3,8 +3,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { ComparisonTimeframe, COMPARISON_TIMEFRAMES } from '@/types';
-import { cn } from '@/lib/utils';
-import { useTheme } from '@/components/ThemeProvider';
 
 interface TimeframeSelectorProps {
   selectedTimeframe: ComparisonTimeframe;
@@ -17,47 +15,61 @@ export const TimeframeSelector: React.FC<TimeframeSelectorProps> = ({
   onSelect,
   disabled = false,
 }) => {
-  const { resolvedTheme } = useTheme();
-
   return (
-    <div className={cn(
-      'flex items-center gap-1 p-1 rounded-lg border',
-      resolvedTheme === 'dark'
-        ? 'bg-slate-900/50 border-slate-800'
-        : 'bg-slate-100 border-slate-200'
-    )}>
+    <div
+      style={{
+        display: 'inline-flex',
+        gap: 2,
+        padding: 3,
+        background: 'var(--surface-2)',
+        border: '1px solid var(--line)',
+        borderRadius: 8,
+      }}
+    >
       {COMPARISON_TIMEFRAMES.map(({ value, label }) => {
         const isSelected = selectedTimeframe === value;
-
         return (
           <button
             key={value}
-            onClick={() => !disabled && onSelect(value)}
+            type="button"
             disabled={disabled}
-            className={cn(
-              'relative px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
-              disabled && 'opacity-50 cursor-not-allowed',
-              isSelected
-                ? resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900'
-                : resolvedTheme === 'dark' ? 'text-slate-400 hover:text-slate-300' : 'text-slate-500 hover:text-slate-700'
-            )}
+            onClick={() => !disabled && onSelect(value)}
+            className="mono"
+            style={{
+              position: 'relative',
+              padding: '6px 10px',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: 5,
+              cursor: disabled ? 'not-allowed' : 'pointer',
+              opacity: disabled ? 0.5 : 1,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: isSelected ? 'oklch(0.14 0.05 145)' : 'var(--text-dim)',
+              minWidth: 38,
+              textAlign: 'center',
+              transition: 'color .15s ease',
+              zIndex: 1,
+            }}
           >
             {isSelected && (
-              <motion.div
+              <motion.span
                 layoutId="timeframe-indicator"
-                className={cn(
-                  'absolute inset-0 rounded-md',
-                  resolvedTheme === 'dark' ? 'bg-slate-700' : 'bg-white shadow-sm'
-                )}
                 initial={false}
-                transition={{
-                  type: 'spring',
-                  stiffness: 500,
-                  damping: 30,
+                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: 'var(--pitch)',
+                  borderRadius: 5,
+                  zIndex: -1,
                 }}
               />
             )}
-            <span className="relative z-10">{label}</span>
+            {label}
           </button>
         );
       })}

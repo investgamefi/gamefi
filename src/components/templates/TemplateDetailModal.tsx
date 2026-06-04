@@ -1,11 +1,9 @@
 'use client';
 
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { PortfolioTemplate, FORMATIONS, RiskLevel } from '@/types';
-import { cn } from '@/lib/utils';
-import { useTheme } from '@/components/ThemeProvider';
-import { Button } from '@/components/ui';
+import { Modal } from '@/components/ui';
+import { Icon } from '@/components/stadium/Icon';
 
 interface TemplateDetailModalProps {
   template: PortfolioTemplate | null;
@@ -15,16 +13,21 @@ interface TemplateDetailModalProps {
   isCreating: boolean;
 }
 
-const RISK_COLORS: Record<RiskLevel, { bg: string; text: string; border: string }> = {
-  low: { bg: 'bg-green-500/20', text: 'text-green-400', border: 'border-green-500/30' },
-  medium: { bg: 'bg-yellow-500/20', text: 'text-yellow-400', border: 'border-yellow-500/30' },
-  high: { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/30' },
+const riskPillClass = (r: RiskLevel) =>
+  r === 'low' ? 'pill pill-sky' : r === 'medium' ? 'pill pill-whistle' : 'pill pill-red';
+const riskCode = (r: RiskLevel) => (r === 'low' ? 'DEF' : r === 'medium' ? 'MID' : 'ATK');
+
+const DIFFICULTY_PILL: Record<'beginner' | 'intermediate' | 'advanced', string> = {
+  beginner: 'pill pill-sky',
+  intermediate: 'pill pill-whistle',
+  advanced: 'pill pill-red',
 };
 
-const DIFFICULTY_COLORS = {
-  beginner: { bg: 'bg-blue-500/20', text: 'text-blue-400' },
-  intermediate: { bg: 'bg-purple-500/20', text: 'text-purple-400' },
-  advanced: { bg: 'bg-orange-500/20', text: 'text-orange-400' },
+const ROW_LABELS: Record<number, { title: string; code: string; pill: string }> = {
+  0: { title: 'GOAL · ULTRA-DEFENSIVE',    code: 'GK',  pill: 'pill pill-sky' },
+  1: { title: 'DEFENSE · LOW VOLATILITY',  code: 'DEF', pill: 'pill pill-sky' },
+  2: { title: 'MIDFIELD · BALANCED',       code: 'MID', pill: 'pill pill-whistle' },
+  3: { title: 'ATTACK · HIGH GROWTH',      code: 'ATK', pill: 'pill pill-red' },
 };
 
 export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
@@ -34,232 +37,222 @@ export const TemplateDetailModal: React.FC<TemplateDetailModalProps> = ({
   onUseTemplate,
   isCreating,
 }) => {
-  const { resolvedTheme } = useTheme();
-
   if (!template) return null;
 
   const positions = FORMATIONS[template.formation];
 
-  // Group stocks by position row for display
-  const getPositionName = (positionId: string) => {
-    const position = positions.find(p => p.id === positionId);
-    return position?.name || positionId;
-  };
-
   const getPositionShortName = (positionId: string) => {
-    const position = positions.find(p => p.id === positionId);
+    const position = positions.find((p) => p.id === positionId);
     return position?.shortName || positionId.toUpperCase();
   };
 
   const getPositionRow = (positionId: string) => {
-    const position = positions.find(p => p.id === positionId);
+    const position = positions.find((p) => p.id === positionId);
     return position?.row ?? 0;
   };
 
-  const groupedStocks = template.stocks.reduce((acc, stock) => {
-    const row = getPositionRow(stock.positionId);
-    if (!acc[row]) acc[row] = [];
-    acc[row].push(stock);
-    return acc;
-  }, {} as Record<number, typeof template.stocks>);
-
-  const rowLabels: Record<number, string> = {
-    0: 'Goalkeeper (Low Risk)',
-    1: 'Defense (Low Risk)',
-    2: 'Midfield (Medium Risk)',
-    3: 'Attack (High Risk)',
-  };
+  const groupedStocks = template.stocks.reduce(
+    (acc, stock) => {
+      const row = getPositionRow(stock.positionId);
+      if (!acc[row]) acc[row] = [];
+      acc[row].push(stock);
+      return acc;
+    },
+    {} as Record<number, typeof template.stocks>,
+  );
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={onClose}
-          />
-
-          {/* Modal */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className={cn(
-              'relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl border',
-              resolvedTheme === 'dark'
-                ? 'bg-slate-900 border-slate-800'
-                : 'bg-white border-slate-200'
-            )}
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={template.name}
+      subtitle={`LINEUP · ${template.formation}`}
+      size="lg"
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {/* Description + badges */}
+        <div>
+          <p
+            style={{
+              color: 'var(--text-dim)',
+              fontSize: 13,
+              lineHeight: 1.6,
+              margin: 0,
+              marginBottom: 12,
+            }}
           >
-            {/* Close Button */}
-            <button
-              onClick={onClose}
-              className={cn(
-                'absolute top-4 right-4 p-2 rounded-lg transition-colors z-10',
-                resolvedTheme === 'dark'
-                  ? 'hover:bg-slate-800 text-slate-400 hover:text-white'
-                  : 'hover:bg-slate-100 text-slate-500 hover:text-slate-900'
-              )}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-
-            {/* Header */}
-            <div className={cn('p-6 border-b', resolvedTheme === 'dark' ? 'border-slate-800' : 'border-slate-200')}>
-              <div className="flex items-start gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h2 className={cn('text-2xl font-bold', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>
-                      {template.name}
-                    </h2>
-                    <span className={cn(
-                      'px-2 py-1 rounded text-xs font-medium',
-                      resolvedTheme === 'dark' ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600'
-                    )}>
-                      {template.formation}
-                    </span>
-                  </div>
-                  <p className={cn('mb-4', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>
-                    {template.description}
-                  </p>
-
-                  {/* Badges */}
-                  <div className="flex flex-wrap gap-2">
-                    <span className={cn(
-                      'px-3 py-1 rounded-full text-xs font-medium',
-                      RISK_COLORS[template.expectedRisk].bg,
-                      RISK_COLORS[template.expectedRisk].text
-                    )}>
-                      {template.expectedRisk.charAt(0).toUpperCase() + template.expectedRisk.slice(1)} Risk
-                    </span>
-                    <span className={cn(
-                      'px-3 py-1 rounded-full text-xs font-medium',
-                      DIFFICULTY_COLORS[template.difficulty].bg,
-                      DIFFICULTY_COLORS[template.difficulty].text
-                    )}>
-                      {template.difficulty.charAt(0).toUpperCase() + template.difficulty.slice(1)}
-                    </span>
-                    <span className={cn(
-                      'px-3 py-1 rounded-full text-xs font-medium capitalize',
-                      resolvedTheme === 'dark' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-700'
-                    )}>
-                      {template.category}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Formation Preview */}
-            <div className={cn('p-6 border-b', resolvedTheme === 'dark' ? 'border-slate-800' : 'border-slate-200')}>
-              <h3 className={cn('text-lg font-semibold mb-4', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>
-                Team Lineup
-              </h3>
-
-              <div className="space-y-4">
-                {[3, 2, 1, 0].map(row => (
-                  groupedStocks[row] && (
-                    <div key={row}>
-                      <p className={cn('text-xs font-medium mb-2', resolvedTheme === 'dark' ? 'text-slate-500' : 'text-slate-400')}>
-                        {rowLabels[row]}
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {groupedStocks[row].map(stock => (
-                          <div
-                            key={stock.positionId}
-                            className={cn(
-                              'flex items-center gap-2 px-3 py-2 rounded-lg border',
-                              resolvedTheme === 'dark'
-                                ? 'bg-slate-800/50 border-slate-700'
-                                : 'bg-slate-50 border-slate-200'
-                            )}
-                          >
-                            <span className={cn(
-                              'text-xs font-medium px-1.5 py-0.5 rounded',
-                              resolvedTheme === 'dark' ? 'bg-slate-700 text-slate-400' : 'bg-slate-200 text-slate-600'
-                            )}>
-                              {getPositionShortName(stock.positionId)}
-                            </span>
-                            <span className={cn(
-                              'font-semibold',
-                              resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900'
-                            )}>
-                              {stock.symbol}
-                            </span>
-                            <span className={cn(
-                              'text-xs',
-                              resolvedTheme === 'dark' ? 'text-slate-500' : 'text-slate-400'
-                            )}>
-                              {stock.allocation.toFixed(1)}%
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                ))}
-              </div>
-            </div>
-
-            {/* Tags */}
-            <div className={cn('px-6 py-4 border-b', resolvedTheme === 'dark' ? 'border-slate-800' : 'border-slate-200')}>
-              <div className="flex flex-wrap gap-2">
-                {template.tags.map(tag => (
-                  <span
-                    key={tag}
-                    className="px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded text-xs"
-                  >
-                    #{tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="p-6">
-              <div className="flex gap-3">
-                <Button
-                  onClick={() => onUseTemplate(template.id)}
-                  disabled={isCreating}
-                  className="flex-1"
-                >
-                  {isCreating ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Creating Portfolio...
-                    </span>
-                  ) : (
-                    'Use This Template'
-                  )}
-                </Button>
-                <Button
-                  onClick={onClose}
-                  variant="ghost"
-                  className={cn(
-                    resolvedTheme === 'dark'
-                      ? 'border-slate-700 text-slate-400 hover:text-white'
-                      : 'border-slate-300 text-slate-600 hover:text-slate-900'
-                  )}
-                >
-                  Cancel
-                </Button>
-              </div>
-              <p className={cn(
-                'text-xs text-center mt-4',
-                resolvedTheme === 'dark' ? 'text-slate-500' : 'text-slate-400'
-              )}>
-                This will create a new portfolio pre-filled with these stocks
-              </p>
-            </div>
-          </motion.div>
+            {template.description}
+          </p>
+          <div className="flex flex-wrap" style={{ gap: 6 }}>
+            <span className={riskPillClass(template.expectedRisk)} style={{ padding: '3px 8px' }}>
+              {riskCode(template.expectedRisk)} · {template.expectedRisk}
+            </span>
+            <span className={DIFFICULTY_PILL[template.difficulty]} style={{ padding: '3px 8px' }}>
+              {template.difficulty}
+            </span>
+            <span className="pill pill-pitch" style={{ padding: '3px 8px' }}>
+              {template.category}
+            </span>
+          </div>
         </div>
-      )}
-    </AnimatePresence>
+
+        {/* Lineup by row */}
+        <section>
+          <div className="flex items-baseline justify-between" style={{ marginBottom: 12 }}>
+            <div>
+              <div className="kicker">STARTING XI · BY POSITION</div>
+              <div className="display" style={{ fontSize: 16, letterSpacing: '-0.02em', marginTop: 2 }}>
+                Lineup
+              </div>
+            </div>
+            <div className="mono" style={{ fontSize: 10, color: 'var(--text-mute)' }}>
+              {template.stocks.length} TICKERS
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[3, 2, 1, 0].map(
+              (row) =>
+                groupedStocks[row] && (
+                  <div
+                    key={row}
+                    className="stadium-card"
+                    style={{ padding: 12 }}
+                  >
+                    <div className="flex items-center" style={{ gap: 8, marginBottom: 8 }}>
+                      <span className={ROW_LABELS[row].pill} style={{ padding: '2px 6px' }}>
+                        {ROW_LABELS[row].code}
+                      </span>
+                      <span className="kicker">{ROW_LABELS[row].title}</span>
+                    </div>
+                    <div className="flex flex-wrap" style={{ gap: 6 }}>
+                      {groupedStocks[row].map((stock) => (
+                        <div
+                          key={stock.positionId}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            padding: '6px 10px',
+                            background: 'var(--surface-2)',
+                            border: '1px solid var(--line)',
+                            borderRadius: 6,
+                          }}
+                        >
+                          <span
+                            className="mono"
+                            style={{
+                              fontSize: 9,
+                              fontWeight: 700,
+                              color: 'var(--text-mute)',
+                              letterSpacing: '0.08em',
+                              padding: '1px 5px',
+                              background: 'var(--surface)',
+                              border: '1px solid var(--line)',
+                              borderRadius: 3,
+                            }}
+                          >
+                            {getPositionShortName(stock.positionId)}
+                          </span>
+                          <span
+                            className="display num"
+                            style={{ fontSize: 13, letterSpacing: '-0.02em' }}
+                          >
+                            {stock.symbol}
+                          </span>
+                          <span
+                            className="mono num"
+                            style={{ fontSize: 10, color: 'var(--text-mute)' }}
+                          >
+                            {stock.allocation.toFixed(1)}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ),
+            )}
+          </div>
+        </section>
+
+        {/* Tags */}
+        {template.tags.length > 0 && (
+          <div>
+            <div className="kicker" style={{ marginBottom: 8 }}>TAGS</div>
+            <div className="flex flex-wrap" style={{ gap: 4 }}>
+              {template.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="mono"
+                  style={{
+                    padding: '2px 8px',
+                    fontSize: 10,
+                    color: 'var(--pitch)',
+                    background: 'var(--pitch-tint)',
+                    border: '1px solid oklch(0.72 0.21 145 / 0.3)',
+                    borderRadius: 3,
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="flex" style={{ gap: 10, paddingTop: 6 }}>
+          <button
+            type="button"
+            onClick={onClose}
+            className="stadium-btn stadium-btn-ghost"
+            style={{ flex: 1, justifyContent: 'center', padding: '11px 14px' }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => onUseTemplate(template.id)}
+            disabled={isCreating}
+            className="stadium-btn stadium-btn-primary"
+            style={{ flex: 1.4, justifyContent: 'center', padding: '11px 14px' }}
+          >
+            {isCreating ? (
+              <>
+                <span
+                  style={{
+                    width: 12,
+                    height: 12,
+                    border: '2px solid currentColor',
+                    borderTopColor: 'transparent',
+                    borderRadius: '50%',
+                    animation: 'stadium-spin 0.9s linear infinite',
+                  }}
+                />
+                Fielding…
+              </>
+            ) : (
+              <>
+                <Icon.Lineup size={14} /> Use this lineup
+              </>
+            )}
+          </button>
+        </div>
+        <p
+          className="mono"
+          style={{
+            textAlign: 'center',
+            fontSize: 10,
+            color: 'var(--text-mute)',
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            margin: 0,
+          }}
+        >
+          Creates a new squad pre-filled with these tickers
+        </p>
+      </div>
+    </Modal>
   );
 };

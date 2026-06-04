@@ -4,8 +4,8 @@ import React from 'react';
 import Link from 'next/link';
 import { Portfolio, User, PortfolioPerformance } from '@/types';
 import { FormationField } from '@/components/portfolio/FormationField';
-import { cn, formatCurrency, formatPercent } from '@/lib/utils';
-import { useTheme } from '@/components/ThemeProvider';
+import { formatCurrency, formatPercent } from '@/lib/utils';
+import { Icon } from '@/components/stadium/Icon';
 
 interface ComparisonCardProps {
   portfolio: Portfolio;
@@ -15,7 +15,13 @@ interface ComparisonCardProps {
   colorIndex: number;
 }
 
-const COLORS = ['emerald', 'blue', 'purple', 'amber'];
+/* Stadium-friendly colour band per comparison slot — used as the top stripe + accent. */
+const SLOT_COLORS = [
+  'var(--pitch)',           // green
+  'oklch(0.75 0.14 230)',   // sky
+  'oklch(0.78 0.18 320)',   // pink-purple
+  'oklch(0.83 0.18 90)',    // whistle yellow
+];
 
 export const ComparisonCard: React.FC<ComparisonCardProps> = ({
   portfolio,
@@ -24,79 +30,172 @@ export const ComparisonCard: React.FC<ComparisonCardProps> = ({
   onRemove,
   colorIndex,
 }) => {
-  const { resolvedTheme } = useTheme();
-  const color = COLORS[colorIndex % COLORS.length];
+  const slotColor = SLOT_COLORS[colorIndex % SLOT_COLORS.length];
   const filledPositions = portfolio.players.filter((p) => p.asset !== null).length;
-
-  const colorClasses: Record<string, { border: string; bg: string; text: string }> = {
-    emerald: { border: 'border-emerald-500/50', bg: 'bg-emerald-500/10', text: 'text-emerald-500' },
-    blue: { border: 'border-blue-500/50', bg: 'bg-blue-500/10', text: 'text-blue-500' },
-    purple: { border: 'border-purple-500/50', bg: 'bg-purple-500/10', text: 'text-purple-500' },
-    amber: { border: 'border-amber-500/50', bg: 'bg-amber-500/10', text: 'text-amber-500' },
-  };
-
-  const classes = colorClasses[color];
+  const positive = performance.totalReturnPercent >= 0;
 
   return (
-    <div className={cn(
-      'border-2 rounded-xl overflow-hidden',
-      resolvedTheme === 'dark' ? 'bg-slate-900/80' : 'bg-white shadow-sm',
-      classes.border
-    )}>
+    <div
+      className="stadium-card"
+      style={{
+        overflow: 'hidden',
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {/* Coloured top stripe */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 3,
+          background: slotColor,
+        }}
+      />
+
       {/* Header */}
-      <div className={cn('px-4 py-3 flex items-center justify-between', classes.bg)}>
-        <div className="min-w-0">
+      <div
+        className="flex items-start justify-between"
+        style={{
+          padding: '14px 14px 10px',
+          borderBottom: '1px solid var(--line)',
+          gap: 8,
+        }}
+      >
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div
+            className="mono"
+            style={{
+              fontSize: 9,
+              color: slotColor,
+              letterSpacing: '0.16em',
+              fontWeight: 700,
+            }}
+          >
+            SLOT {String(colorIndex + 1).padStart(2, '0')}
+          </div>
           <Link
             href={`/portfolio/${portfolio.id}`}
-            className={cn('font-semibold text-sm hover:underline', classes.text)}
+            className="display"
+            style={{
+              fontSize: 15,
+              letterSpacing: '-0.02em',
+              color: 'var(--text)',
+              textDecoration: 'none',
+              display: 'block',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              marginTop: 2,
+            }}
           >
             {portfolio.name}
           </Link>
           {owner && (
-            <p className={cn('text-xs truncate', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>@{owner.username}</p>
+            <div
+              className="mono"
+              style={{
+                fontSize: 10,
+                color: 'var(--text-mute)',
+                marginTop: 1,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                letterSpacing: '0.04em',
+              }}
+            >
+              @{owner.username}
+            </div>
           )}
         </div>
         <button
+          type="button"
           onClick={onRemove}
-          className="p-1 text-slate-400 hover:text-red-400 transition-colors"
+          aria-label="Remove squad"
+          style={{
+            padding: 5,
+            background: 'transparent',
+            border: '1px solid var(--line)',
+            borderRadius: 5,
+            color: 'var(--text-mute)',
+            cursor: 'pointer',
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = 'var(--ref-red)';
+            e.currentTarget.style.borderColor = 'oklch(0.65 0.22 25 / 0.4)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = 'var(--text-mute)';
+            e.currentTarget.style.borderColor = 'var(--line)';
+          }}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          <Icon.Close size={11} />
         </button>
       </div>
 
-      {/* Mini Formation */}
-      <div className="p-4">
-        <div className="w-full max-w-[120px] mx-auto">
-          <FormationField portfolio={portfolio} compact />
+      {/* Mini pitch */}
+      <div style={{ padding: 12 }}>
+        <div style={{ width: '100%', maxWidth: 140, margin: '0 auto' }}>
+          <FormationField portfolio={portfolio} compact variant="tactics" />
         </div>
       </div>
 
-      {/* Quick Stats */}
-      <div className="px-4 pb-4 grid grid-cols-2 gap-2 text-center">
-        <div className={cn('rounded-lg p-2', resolvedTheme === 'dark' ? 'bg-slate-800/50' : 'bg-slate-100')}>
-          <p className="text-xs text-slate-500">Value</p>
-          <p className={cn('text-sm font-semibold', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>{formatCurrency(performance.totalValue)}</p>
-        </div>
-        <div className={cn('rounded-lg p-2', resolvedTheme === 'dark' ? 'bg-slate-800/50' : 'bg-slate-100')}>
-          <p className="text-xs text-slate-500">Return</p>
-          <p className={cn(
-            'text-sm font-semibold',
-            performance.totalReturnPercent >= 0 ? 'text-emerald-400' : 'text-red-400'
-          )}>
-            {formatPercent(performance.totalReturnPercent)}
-          </p>
-        </div>
-        <div className={cn('rounded-lg p-2', resolvedTheme === 'dark' ? 'bg-slate-800/50' : 'bg-slate-100')}>
-          <p className="text-xs text-slate-500">Formation</p>
-          <p className={cn('text-sm font-medium', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>{portfolio.formation}</p>
-        </div>
-        <div className={cn('rounded-lg p-2', resolvedTheme === 'dark' ? 'bg-slate-800/50' : 'bg-slate-100')}>
-          <p className="text-xs text-slate-500">Players</p>
-          <p className={cn('text-sm font-medium', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>{filledPositions}/11</p>
-        </div>
+      {/* Stats grid */}
+      <div
+        style={{
+          padding: '8px 12px 12px',
+          borderTop: '1px solid var(--line)',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: 6,
+        }}
+      >
+        <Stat label="VALUE" value={formatCurrency(performance.totalValue)} />
+        <Stat
+          label="RETURN"
+          value={formatPercent(performance.totalReturnPercent)}
+          tone={positive ? 'pos' : 'neg'}
+        />
+        <Stat label="FORMATION" value={portfolio.formation} />
+        <Stat label="FILLED" value={`${filledPositions}/11`} />
       </div>
     </div>
   );
 };
+
+const Stat: React.FC<{ label: string; value: string; tone?: 'pos' | 'neg' }> = ({
+  label,
+  value,
+  tone,
+}) => (
+  <div
+    style={{
+      padding: '6px 8px',
+      background: 'var(--surface-2)',
+      borderRadius: 5,
+      textAlign: 'center',
+    }}
+  >
+    <div className="kicker" style={{ fontSize: 8 }}>{label}</div>
+    <div
+      className="mono num"
+      style={{
+        fontSize: 11,
+        marginTop: 2,
+        fontWeight: 700,
+        color: tone === 'pos' ? 'var(--pitch)' : tone === 'neg' ? 'var(--ref-red)' : 'var(--text)',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {value}
+    </div>
+  </div>
+);

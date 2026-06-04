@@ -3,8 +3,7 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { PortfolioPerformance, BenchmarkPerformance } from '@/types';
-import { formatPercent, cn } from '@/lib/utils';
-import { useTheme } from '@/components/ThemeProvider';
+import { formatPercent } from '@/lib/utils';
 
 interface MetricComparisonChartProps {
   performances: { name: string; performance: PortfolioPerformance }[];
@@ -15,28 +14,25 @@ interface MetricComparisonChartProps {
   higherIsBetter?: boolean;
 }
 
-const CHART_COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b'];
+const SLOT_COLORS = [
+  'oklch(0.72 0.21 145)',  // pitch green
+  'oklch(0.75 0.14 230)',  // sky
+  'oklch(0.78 0.18 320)',  // pink-purple
+  'oklch(0.83 0.18 90)',   // whistle
+];
 
-// Map portfolio metrics to benchmark metrics
 const getBenchmarkValue = (
   benchmark: BenchmarkPerformance,
-  metricKey: keyof PortfolioPerformance
+  metricKey: keyof PortfolioPerformance,
 ): number | null => {
   switch (metricKey) {
-    case 'totalReturnPercent':
-      return benchmark.totalReturnPercent;
-    case 'volatility':
-      return benchmark.volatility;
-    case 'sharpeRatio':
-      return benchmark.sharpeRatio;
-    case 'maxDrawdown':
-      return benchmark.maxDrawdown;
-    case 'beta':
-      return benchmark.beta;
-    case 'winRate':
-      return benchmark.winRate;
-    default:
-      return null;
+    case 'totalReturnPercent': return benchmark.totalReturnPercent;
+    case 'volatility':         return benchmark.volatility;
+    case 'sharpeRatio':        return benchmark.sharpeRatio;
+    case 'maxDrawdown':        return benchmark.maxDrawdown;
+    case 'beta':               return benchmark.beta;
+    case 'winRate':            return benchmark.winRate;
+    default:                   return null;
   }
 };
 
@@ -48,17 +44,13 @@ export const MetricComparisonChart: React.FC<MetricComparisonChartProps> = ({
   formatValue = (v) => v.toFixed(2),
   higherIsBetter = true,
 }) => {
-  const { resolvedTheme } = useTheme();
-
-  // Portfolio data
   const portfolioData = performances.map((p, index) => ({
     name: p.name,
     value: Number(p.performance[metricKey]) || 0,
-    color: CHART_COLORS[index % CHART_COLORS.length],
+    color: SLOT_COLORS[index % SLOT_COLORS.length],
     isBenchmark: false,
   }));
 
-  // Benchmark data (only include if metric is available)
   const benchmarkData = benchmarks
     .map((b) => {
       const value = getBenchmarkValue(b, metricKey);
@@ -73,27 +65,24 @@ export const MetricComparisonChart: React.FC<MetricComparisonChartProps> = ({
     .filter((d): d is NonNullable<typeof d> => d !== null);
 
   const data = [...portfolioData, ...benchmarkData];
+  if (data.length === 0) return null;
 
-  // Find the best value
   const values = data.map((d) => d.value);
-  const bestValue = higherIsBetter
-    ? Math.max(...values)
-    : Math.min(...values);
+  const bestValue = higherIsBetter ? Math.max(...values) : Math.min(...values);
 
   return (
-    <div className={cn(
-      'rounded-xl p-4 border',
-      resolvedTheme === 'dark'
-        ? 'bg-slate-900/50 border-slate-800'
-        : 'bg-white border-slate-200 shadow-sm'
-    )}>
-      <h3 className={cn('text-sm font-medium mb-3', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>{title}</h3>
-      <div className="h-40">
+    <div className="stadium-card" style={{ padding: 14 }}>
+      <div className="kicker" style={{ marginBottom: 8 }}>{title.toUpperCase()}</div>
+      <div style={{ height: 150 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} layout="vertical" margin={{ left: 0, right: 20 }}>
+          <BarChart data={data} layout="vertical" margin={{ left: 0, right: 20, top: 4, bottom: 4 }}>
             <XAxis
               type="number"
-              tick={{ fill: '#64748b', fontSize: 10 }}
+              tick={{
+                fill: 'var(--text-mute)',
+                fontSize: 9,
+                fontFamily: 'var(--font-mono)',
+              }}
               axisLine={false}
               tickLine={false}
               tickFormatter={formatValue}
@@ -101,25 +90,34 @@ export const MetricComparisonChart: React.FC<MetricComparisonChartProps> = ({
             <YAxis
               type="category"
               dataKey="name"
-              tick={{ fill: '#94a3b8', fontSize: 11 }}
+              tick={{
+                fill: 'var(--text-dim)',
+                fontSize: 10,
+                fontFamily: 'var(--font-display)',
+              }}
               axisLine={false}
               tickLine={false}
               width={80}
             />
             <Tooltip
+              cursor={{ fill: 'var(--surface-2)' }}
               contentStyle={{
-                backgroundColor: resolvedTheme === 'dark' ? '#1e293b' : '#ffffff',
-                border: `1px solid ${resolvedTheme === 'dark' ? '#334155' : '#e2e8f0'}`,
-                borderRadius: '8px',
+                backgroundColor: 'var(--ink)',
+                border: '1px solid var(--line-2)',
+                borderRadius: 6,
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                padding: '6px 10px',
               }}
-              labelStyle={{ color: resolvedTheme === 'dark' ? '#94a3b8' : '#64748b' }}
+              labelStyle={{ color: 'rgba(255,255,255,0.6)', fontSize: 9, letterSpacing: '0.1em' }}
+              itemStyle={{ color: '#fff', fontWeight: 700 }}
               formatter={(value: number | undefined) => [formatValue(value ?? 0), title]}
             />
             <Bar dataKey="value" radius={[0, 4, 4, 0]}>
               {data.map((entry, index) => (
                 <Cell
                   key={index}
-                  fill={entry.value === bestValue ? '#10b981' : entry.color}
+                  fill={entry.value === bestValue && !entry.isBenchmark ? 'var(--pitch)' : entry.color}
                   opacity={entry.value === bestValue ? 1 : 0.7}
                   strokeDasharray={entry.isBenchmark ? '4 2' : undefined}
                   stroke={entry.isBenchmark ? entry.color : undefined}
@@ -133,3 +131,6 @@ export const MetricComparisonChart: React.FC<MetricComparisonChartProps> = ({
     </div>
   );
 };
+
+/* re-export so /compare can use the same helper */
+export { formatPercent };

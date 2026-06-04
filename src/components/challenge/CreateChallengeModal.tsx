@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChallengeType,
   ChallengeTimeframe,
@@ -10,9 +9,8 @@ import {
   MAX_ACTIVE_CHALLENGES,
 } from '@/types';
 import { useStore } from '@/store/useStore';
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui';
-import { useTheme } from '@/components/ThemeProvider';
+import { Modal } from '@/components/ui';
+import { Icon } from '@/components/stadium/Icon';
 
 interface CreateChallengeModalProps {
   isOpen: boolean;
@@ -23,7 +21,6 @@ export const CreateChallengeModal: React.FC<CreateChallengeModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { resolvedTheme } = useTheme();
   const {
     currentUser,
     portfolios,
@@ -33,7 +30,6 @@ export const CreateChallengeModal: React.FC<CreateChallengeModalProps> = ({
     getActiveChallengesCount,
   } = useStore();
 
-  const [step, setStep] = useState(1);
   const [challengeType, setChallengeType] = useState<ChallengeType>('sp500');
   const [selectedPortfolioId, setSelectedPortfolioId] = useState('');
   const [selectedTimeframe, setSelectedTimeframe] = useState<ChallengeTimeframe>('1W');
@@ -45,48 +41,9 @@ export const CreateChallengeModal: React.FC<CreateChallengeModalProps> = ({
   const xpAtStake = challengeType === 'sp500' ? CHALLENGE_XP.VS_SP500 : CHALLENGE_XP.VS_USER;
   const canCreate = canCreateChallenge(challengeType);
 
-  // Get opponent portfolios (public portfolios from other users)
-  const opponentPortfolios = publicPortfolios.filter(
-    (p) => p.userId !== currentUser?.id
-  );
-
-  const handleCreate = async () => {
-    if (!selectedPortfolioId) {
-      setError('Please select your portfolio');
-      return;
-    }
-
-    if (challengeType === 'user' && !opponentPortfolioId) {
-      setError('Please select an opponent portfolio');
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    // Find opponent user ID from the selected portfolio
-    const opponentPortfolio = opponentPortfolios.find((p) => p.id === opponentPortfolioId);
-
-    const result = await createChallenge(
-      selectedPortfolioId,
-      challengeType,
-      selectedTimeframe,
-      opponentPortfolio?.userId,
-      opponentPortfolioId || undefined
-    );
-
-    setIsLoading(false);
-
-    if (result.success) {
-      onClose();
-      resetForm();
-    } else {
-      setError(result.error || 'Failed to create challenge');
-    }
-  };
+  const opponentPortfolios = publicPortfolios.filter((p) => p.userId !== currentUser?.id);
 
   const resetForm = () => {
-    setStep(1);
     setChallengeType('sp500');
     setSelectedPortfolioId('');
     setSelectedTimeframe('1W');
@@ -99,251 +56,416 @@ export const CreateChallengeModal: React.FC<CreateChallengeModalProps> = ({
     resetForm();
   };
 
-  if (!isOpen) return null;
+  const handleCreate = async () => {
+    if (!selectedPortfolioId) {
+      setError('Please pick your squad');
+      return;
+    }
+    if (challengeType === 'user' && !opponentPortfolioId) {
+      setError('Please pick an opponent squad');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    const opponentPortfolio = opponentPortfolios.find((p) => p.id === opponentPortfolioId);
+    const result = await createChallenge(
+      selectedPortfolioId,
+      challengeType,
+      selectedTimeframe,
+      opponentPortfolio?.userId,
+      opponentPortfolioId || undefined,
+    );
+
+    setIsLoading(false);
+
+    if (result.success) {
+      handleClose();
+    } else {
+      setError(result.error || 'Failed to set up the fixture');
+    }
+  };
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-        onClick={handleClose}
-      >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          className={cn(
-            'w-full max-w-lg rounded-2xl overflow-hidden border',
-            resolvedTheme === 'dark'
-              ? 'bg-slate-900 border-slate-800'
-              : 'bg-white border-slate-200 shadow-xl'
-          )}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className={cn('p-6 border-b', resolvedTheme === 'dark' ? 'border-slate-800' : 'border-slate-200')}>
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className={cn('text-xl font-bold', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>Create Challenge</h2>
-                <p className={cn('text-sm mt-1', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
-                  Active: {activeCount}/{MAX_ACTIVE_CHALLENGES}
-                </p>
-              </div>
-              <button
-                onClick={handleClose}
-                className={cn(
-                  'p-2 rounded-lg transition-colors',
-                  resolvedTheme === 'dark'
-                    ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                    : 'text-slate-400 hover:text-slate-900 hover:bg-slate-100'
-                )}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title="New fixture"
+      subtitle={`FIXTURES · ${activeCount} / ${MAX_ACTIVE_CHALLENGES} ACTIVE`}
+      size="md"
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {error && (
+          <Banner tone="error">{error}</Banner>
+        )}
+
+        {!canCreate.canCreate && (
+          <Banner tone="warn">{canCreate.reason}</Banner>
+        )}
+
+        {/* Fixture type */}
+        <div>
+          <Label>Fixture type</Label>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: 10,
+            }}
+          >
+            <TypeCard
+              icon="Bolt"
+              code="BMK"
+              pillClass="pill pill-whistle"
+              title="vs S&P 500"
+              sub="Beat the market index over your chosen timeframe."
+              xp={CHALLENGE_XP.VS_SP500}
+              active={challengeType === 'sp500'}
+              onClick={() => setChallengeType('sp500')}
+            />
+            <TypeCard
+              icon="Profile"
+              code="PVP"
+              pillClass="pill pill-pitch"
+              title="vs Manager"
+              sub="Head-to-head with another manager's squad."
+              xp={CHALLENGE_XP.VS_USER}
+              active={challengeType === 'user'}
+              onClick={() => setChallengeType('user')}
+            />
           </div>
+        </div>
 
-          {/* Content */}
-          <div className="p-6 space-y-6">
-            {/* Error Message */}
-            {error && (
-              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
-                {error}
-              </div>
-            )}
+        {/* Your squad */}
+        <div>
+          <Label>Your squad</Label>
+          <SquadSelect
+            value={selectedPortfolioId}
+            onChange={setSelectedPortfolioId}
+            options={portfolios.map((p) => ({
+              id: p.id,
+              label: p.name,
+              formation: p.formation,
+            }))}
+            placeholder="Pick a squad to field"
+          />
+        </div>
 
-            {/* Can't create warning */}
-            {!canCreate.canCreate && (
-              <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-yellow-400 text-sm">
-                {canCreate.reason}
-              </div>
-            )}
-
-            {/* Step 1: Challenge Type */}
-            {step === 1 && (
-              <div className="space-y-4">
-                <label className={cn('block text-sm font-medium', resolvedTheme === 'dark' ? 'text-slate-300' : 'text-slate-700')}>
-                  Challenge Type
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => setChallengeType('sp500')}
-                    className={cn(
-                      'p-4 rounded-xl border-2 transition-all text-left',
-                      challengeType === 'sp500'
-                        ? 'border-amber-500 bg-amber-500/10'
-                        : resolvedTheme === 'dark'
-                          ? 'border-slate-700 hover:border-slate-600 bg-slate-800/50'
-                          : 'border-slate-200 hover:border-slate-300 bg-slate-50'
-                    )}
-                  >
-                    <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center mb-3">
-                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                      </svg>
-                    </div>
-                    <h3 className={cn('font-semibold', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>vs S&P 500</h3>
-                    <p className={cn('text-xs mt-1', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>Beat the market index</p>
-                    <p className="text-sm text-amber-400 mt-2">{CHALLENGE_XP.VS_SP500} XP at stake</p>
-                  </button>
-
-                  <button
-                    onClick={() => setChallengeType('user')}
-                    className={cn(
-                      'p-4 rounded-xl border-2 transition-all text-left',
-                      challengeType === 'user'
-                        ? 'border-purple-500 bg-purple-500/10'
-                        : resolvedTheme === 'dark'
-                          ? 'border-slate-700 hover:border-slate-600 bg-slate-800/50'
-                          : 'border-slate-200 hover:border-slate-300 bg-slate-50'
-                    )}
-                  >
-                    <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-500 rounded-full flex items-center justify-center mb-3">
-                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                      </svg>
-                    </div>
-                    <h3 className={cn('font-semibold', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>vs User</h3>
-                    <p className={cn('text-xs mt-1', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>Challenge another player</p>
-                    <p className="text-sm text-purple-400 mt-2">{CHALLENGE_XP.VS_USER} XP at stake</p>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Step 2: Select Your Portfolio */}
-            {step >= 1 && (
-              <div className="space-y-4">
-                <label className={cn('block text-sm font-medium', resolvedTheme === 'dark' ? 'text-slate-300' : 'text-slate-700')}>
-                  Your Portfolio
-                </label>
-                <select
-                  value={selectedPortfolioId}
-                  onChange={(e) => setSelectedPortfolioId(e.target.value)}
-                  className={cn(
-                    'w-full px-4 py-3 rounded-xl focus:outline-none focus:border-emerald-500 border',
-                    resolvedTheme === 'dark'
-                      ? 'bg-slate-800 border-slate-700 text-white'
-                      : 'bg-white border-slate-200 text-slate-900'
-                  )}
+        {/* Timeframe */}
+        <div>
+          <Label>Timeframe</Label>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: 6,
+            }}
+          >
+            {CHALLENGE_TIMEFRAMES.map((tf) => {
+              const isActive = selectedTimeframe === tf.value;
+              return (
+                <button
+                  key={tf.value}
+                  type="button"
+                  onClick={() => setSelectedTimeframe(tf.value)}
+                  className="mono"
+                  style={{
+                    padding: '10px 6px',
+                    background: isActive ? 'var(--pitch)' : 'var(--surface-2)',
+                    color: isActive ? 'oklch(0.14 0.05 145)' : 'var(--text-dim)',
+                    border: '1px solid ' + (isActive ? 'var(--pitch-deep)' : 'var(--line)'),
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    transition: 'background .12s, border-color .12s',
+                  }}
                 >
-                  <option value="">Select a portfolio</option>
-                  {portfolios.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} ({p.formation})</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Step 3: Select Timeframe */}
-            {step >= 1 && (
-              <div className="space-y-4">
-                <label className={cn('block text-sm font-medium', resolvedTheme === 'dark' ? 'text-slate-300' : 'text-slate-700')}>
-                  Duration
-                </label>
-                <div className="grid grid-cols-4 gap-2">
-                  {CHALLENGE_TIMEFRAMES.map((tf) => (
-                    <button
-                      key={tf.value}
-                      onClick={() => setSelectedTimeframe(tf.value)}
-                      className={cn(
-                        'py-2 px-3 rounded-lg text-sm font-medium transition-all',
-                        selectedTimeframe === tf.value
-                          ? 'bg-emerald-500 text-white'
-                          : resolvedTheme === 'dark'
-                            ? 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
-                            : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
-                      )}
-                    >
-                      {tf.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Step 4: Select Opponent (for user challenges) */}
-            {challengeType === 'user' && (
-              <div className="space-y-4">
-                <label className={cn('block text-sm font-medium', resolvedTheme === 'dark' ? 'text-slate-300' : 'text-slate-700')}>
-                  Opponent Portfolio
-                </label>
-                {opponentPortfolios.length === 0 ? (
-                  <p className={cn('text-sm', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>No public portfolios available to challenge</p>
-                ) : (
-                  <select
-                    value={opponentPortfolioId}
-                    onChange={(e) => setOpponentPortfolioId(e.target.value)}
-                    className={cn(
-                      'w-full px-4 py-3 rounded-xl focus:outline-none focus:border-emerald-500 border',
-                      resolvedTheme === 'dark'
-                        ? 'bg-slate-800 border-slate-700 text-white'
-                        : 'bg-white border-slate-200 text-slate-900'
-                    )}
-                  >
-                    <option value="">Select opponent portfolio</option>
-                    {opponentPortfolios.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name} ({p.formation})</option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            )}
-
-            {/* Summary */}
-            <div className={cn(
-              'p-4 rounded-xl space-y-2',
-              resolvedTheme === 'dark' ? 'bg-slate-800/50' : 'bg-slate-50'
-            )}>
-              <div className="flex justify-between text-sm">
-                <span className={cn(resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>Challenge Type</span>
-                <span className={cn(resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>{challengeType === 'sp500' ? 'vs S&P 500' : 'vs User'}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className={cn(resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>Duration</span>
-                <span className={cn(resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>{CHALLENGE_TIMEFRAMES.find(t => t.value === selectedTimeframe)?.label}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className={cn(resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>XP at Stake</span>
-                <span className={cn(
-                  'font-semibold',
-                  challengeType === 'sp500' ? 'text-amber-400' : 'text-purple-400'
-                )}>
-                  {xpAtStake} XP
-                </span>
-              </div>
-              {currentUser && (
-                <div className={cn('flex justify-between text-sm pt-2 border-t', resolvedTheme === 'dark' ? 'border-slate-700' : 'border-slate-200')}>
-                  <span className={cn(resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>Your Current XP</span>
-                  <span className={cn(resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>{currentUser.xp} XP</span>
-                </div>
-              )}
-            </div>
+                  {tf.label}
+                </button>
+              );
+            })}
           </div>
+        </div>
 
-          {/* Footer */}
-          <div className={cn('p-6 border-t flex gap-3', resolvedTheme === 'dark' ? 'border-slate-800' : 'border-slate-200')}>
-            <Button
-              variant="ghost"
-              onClick={handleClose}
-              className="flex-1"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreate}
-              disabled={isLoading || !canCreate.canCreate || !selectedPortfolioId || (challengeType === 'user' && !opponentPortfolioId)}
-              className="flex-1"
-            >
-              {isLoading ? 'Creating...' : 'Create Challenge'}
-            </Button>
+        {/* Opponent (only for vs user) */}
+        {challengeType === 'user' && (
+          <div>
+            <Label>Opponent squad</Label>
+            {opponentPortfolios.length === 0 ? (
+              <div
+                className="stadium-card"
+                style={{
+                  padding: '14px 16px',
+                  borderStyle: 'dashed',
+                  textAlign: 'center',
+                }}
+              >
+                <div className="kicker">NO PUBLIC SQUADS YET TO CHALLENGE</div>
+              </div>
+            ) : (
+              <SquadSelect
+                value={opponentPortfolioId}
+                onChange={setOpponentPortfolioId}
+                options={opponentPortfolios.map((p) => ({
+                  id: p.id,
+                  label: p.name,
+                  formation: p.formation,
+                }))}
+                placeholder="Pick a rival squad"
+              />
+            )}
           </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+        )}
+
+        {/* Summary */}
+        <div
+          className="stadium-card"
+          style={{
+            padding: 14,
+            background: 'var(--surface-2)',
+          }}
+        >
+          <div className="kicker" style={{ marginBottom: 10 }}>FIXTURE SUMMARY</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <SummaryRow
+              label="Type"
+              value={challengeType === 'sp500' ? 'vs S&P 500' : 'vs Manager'}
+            />
+            <SummaryRow
+              label="Timeframe"
+              value={CHALLENGE_TIMEFRAMES.find((t) => t.value === selectedTimeframe)?.label || selectedTimeframe}
+            />
+            <SummaryRow
+              label="XP at stake"
+              value={`+${xpAtStake} XP`}
+              valueColor="var(--whistle)"
+            />
+            {currentUser && (
+              <SummaryRow
+                label="Your XP"
+                value={`${currentUser.xp.toLocaleString()} XP`}
+                divider
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex" style={{ gap: 10, marginTop: 4 }}>
+          <button
+            type="button"
+            className="stadium-btn stadium-btn-ghost"
+            style={{ flex: 1, justifyContent: 'center', padding: '11px 14px' }}
+            onClick={handleClose}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="stadium-btn stadium-btn-primary"
+            style={{ flex: 1.4, justifyContent: 'center', padding: '11px 14px' }}
+            onClick={handleCreate}
+            disabled={
+              isLoading ||
+              !canCreate.canCreate ||
+              !selectedPortfolioId ||
+              (challengeType === 'user' && !opponentPortfolioId)
+            }
+          >
+            {isLoading ? (
+              <>
+                <span
+                  style={{
+                    width: 12,
+                    height: 12,
+                    border: '2px solid currentColor',
+                    borderTopColor: 'transparent',
+                    borderRadius: '50%',
+                    animation: 'stadium-spin 0.9s linear infinite',
+                  }}
+                />
+                Setting up…
+              </>
+            ) : (
+              <>
+                <Icon.Whistle size={14} /> Kick off fixture
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 };
+
+/* ============================================================ */
+
+const Label: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <label
+    className="kicker"
+    style={{ display: 'block', marginBottom: 8, color: 'var(--text-dim)' }}
+  >
+    {children}
+  </label>
+);
+
+const Banner: React.FC<{ tone: 'error' | 'warn'; children: React.ReactNode }> = ({ tone, children }) => (
+  <div
+    className="stadium-card"
+    style={{
+      padding: '10px 12px',
+      background:
+        tone === 'error' ? 'oklch(0.65 0.22 25 / 0.08)' : 'oklch(0.83 0.18 90 / 0.1)',
+      borderColor:
+        tone === 'error' ? 'oklch(0.65 0.22 25 / 0.3)' : 'oklch(0.83 0.18 90 / 0.3)',
+    }}
+  >
+    <p
+      className="mono"
+      style={{
+        margin: 0,
+        fontSize: 11,
+        color: tone === 'error' ? 'var(--ref-red)' : 'var(--whistle)',
+        letterSpacing: '0.02em',
+        lineHeight: 1.5,
+      }}
+    >
+      {children}
+    </p>
+  </div>
+);
+
+const TypeCard: React.FC<{
+  icon: 'Bolt' | 'Profile';
+  code: string;
+  pillClass: string;
+  title: string;
+  sub: string;
+  xp: number;
+  active: boolean;
+  onClick: () => void;
+}> = ({ icon, code, pillClass, title, sub, xp, active, onClick }) => {
+  const IconCmp = Icon[icon];
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        padding: 14,
+        background: active ? 'var(--pitch-tint)' : 'var(--surface-2)',
+        border: '1px solid ' + (active ? 'var(--pitch)' : 'var(--line)'),
+        borderRadius: 10,
+        cursor: 'pointer',
+        textAlign: 'left',
+        color: 'var(--text)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        transition: 'background .12s, border-color .12s',
+      }}
+    >
+      <div className="flex items-center justify-between">
+        <span className={pillClass} style={{ padding: '2px 6px' }}>
+          {code}
+        </span>
+        <IconCmp size={18} style={{ color: active ? 'var(--pitch)' : 'var(--text-dim)' }} />
+      </div>
+      <div className="display" style={{ fontSize: 15, letterSpacing: '-0.02em' }}>
+        {title}
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+        {sub}
+      </div>
+      <div
+        className="mono num"
+        style={{
+          fontSize: 12,
+          fontWeight: 700,
+          color: 'var(--whistle)',
+          marginTop: 2,
+        }}
+      >
+        +{xp} XP
+      </div>
+    </button>
+  );
+};
+
+const SquadSelect: React.FC<{
+  value: string;
+  onChange: (v: string) => void;
+  options: { id: string; label: string; formation: string }[];
+  placeholder: string;
+}> = ({ value, onChange, options, placeholder }) => (
+  <select
+    value={value}
+    onChange={(e) => onChange(e.target.value)}
+    style={{
+      width: '100%',
+      padding: '10px 14px',
+      background: 'var(--surface-2)',
+      border: '1px solid var(--line)',
+      borderRadius: 8,
+      color: 'var(--text)',
+      fontFamily: 'var(--font-body)',
+      fontSize: 13,
+      cursor: 'pointer',
+      outline: 'none',
+      appearance: 'none',
+      backgroundImage:
+        "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23808890' stroke-width='2'><path d='M6 9 L12 15 L18 9'/></svg>\")",
+      backgroundRepeat: 'no-repeat',
+      backgroundPosition: 'right 12px center',
+      paddingRight: 34,
+    }}
+    onFocus={(e) => {
+      e.currentTarget.style.borderColor = 'var(--pitch)';
+      e.currentTarget.style.background = 'var(--surface)';
+    }}
+    onBlur={(e) => {
+      e.currentTarget.style.borderColor = 'var(--line)';
+      e.currentTarget.style.background = 'var(--surface-2)';
+    }}
+  >
+    <option value="">{placeholder}</option>
+    {options.map((opt) => (
+      <option key={opt.id} value={opt.id}>
+        {opt.label} ({opt.formation})
+      </option>
+    ))}
+  </select>
+);
+
+const SummaryRow: React.FC<{
+  label: string;
+  value: string;
+  valueColor?: string;
+  divider?: boolean;
+}> = ({ label, value, valueColor, divider }) => (
+  <div
+    className="flex justify-between items-center"
+    style={{
+      paddingTop: divider ? 6 : 0,
+      borderTop: divider ? '1px solid var(--line)' : 'none',
+      marginTop: divider ? 4 : 0,
+    }}
+  >
+    <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.06em' }}>
+      {label}
+    </span>
+    <span
+      className="display num"
+      style={{
+        fontSize: 13,
+        color: valueColor || 'var(--text)',
+        letterSpacing: '-0.01em',
+      }}
+    >
+      {value}
+    </span>
+  </div>
+);

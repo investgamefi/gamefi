@@ -3,13 +3,19 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '@/store/useStore';
-import { cn } from '@/lib/utils';
+import { Icon } from '@/components/stadium/Icon';
 
 type FeedbackType = 'bug' | 'feature' | 'general';
 
 interface FeedbackWidgetProps {
   position?: 'bottom-right' | 'bottom-left';
 }
+
+const TYPE_OPTIONS: { value: FeedbackType; label: string; icon: 'Close' | 'Bolt' | 'Bell' }[] = [
+  { value: 'bug', label: 'Bug', icon: 'Close' },
+  { value: 'feature', label: 'Feature', icon: 'Bolt' },
+  { value: 'general', label: 'General', icon: 'Bell' },
+];
 
 export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({ position = 'bottom-right' }) => {
   const { currentUser } = useStore();
@@ -25,9 +31,7 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({ position = 'bott
     if (!message.trim()) return;
 
     setIsSubmitting(true);
-
     try {
-      // Send feedback to API
       await fetch('/api/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -57,135 +61,269 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({ position = 'bott
     }
   };
 
-  const positionClasses = position === 'bottom-right' ? 'right-4' : 'left-4';
+  const positionStyle: React.CSSProperties =
+    position === 'bottom-right' ? { right: 16 } : { left: 16 };
 
   return (
     <>
-      {/* Floating Button */}
+      {/* Floating button */}
       <motion.button
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
-        whileHover={{ scale: 1.1 }}
+        whileHover={{ scale: 1.05 }}
         onClick={() => setIsOpen(true)}
-        className={cn(
-          'fixed bottom-4 z-40 w-12 h-12 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full shadow-lg shadow-emerald-500/25 flex items-center justify-center text-white hover:shadow-emerald-500/40 transition-shadow',
-          positionClasses,
-          isOpen && 'hidden'
-        )}
-        title="Send Feedback"
+        type="button"
+        title="Send feedback"
+        style={{
+          position: 'fixed',
+          bottom: 16,
+          zIndex: 40,
+          width: 48,
+          height: 48,
+          background: 'var(--pitch)',
+          color: 'oklch(0.14 0.05 145)',
+          border: '1px solid var(--pitch-deep)',
+          borderRadius: 12,
+          display: isOpen ? 'none' : 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          boxShadow: '0 10px 30px -10px oklch(0.72 0.21 145 / 0.6)',
+          ...positionStyle,
+        }}
       >
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-        </svg>
+        <Icon.Whistle size={22} />
       </motion.button>
 
-      {/* Feedback Modal */}
+      {/* Popup */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className={cn(
-              'fixed bottom-4 z-50 w-80 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden',
-              positionClasses
-            )}
+            className="stadium-card"
+            style={{
+              position: 'fixed',
+              bottom: 16,
+              zIndex: 50,
+              width: 340,
+              maxWidth: 'calc(100vw - 32px)',
+              background: 'var(--surface)',
+              border: '1px solid var(--line)',
+              borderRadius: 12,
+              overflow: 'hidden',
+              boxShadow:
+                '0 1px 0 rgba(0,0,0,0.04), 0 30px 80px -20px rgba(0,0,0,0.6)',
+              ...positionStyle,
+            }}
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-800/50">
-              <h3 className="font-semibold text-white">Send Feedback</h3>
+            <div
+              className="flex items-center justify-between"
+              style={{
+                padding: '12px 16px',
+                background: 'var(--surface-2)',
+                borderBottom: '1px solid var(--line)',
+              }}
+            >
+              <div>
+                <div className="kicker">FEEDBACK</div>
+                <div className="display" style={{ fontSize: 14, letterSpacing: '-0.02em', marginTop: 1 }}>
+                  Send feedback
+                </div>
+              </div>
               <button
+                type="button"
                 onClick={() => setIsOpen(false)}
-                className="text-slate-400 hover:text-white transition-colors"
+                aria-label="Close"
+                style={{
+                  padding: 6,
+                  background: 'transparent',
+                  border: '1px solid var(--line)',
+                  borderRadius: 6,
+                  color: 'var(--text-dim)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <Icon.Close size={14} />
               </button>
             </div>
 
             {isSubmitted ? (
-              <div className="p-6 text-center">
-                <div className="w-16 h-16 mx-auto mb-4 bg-emerald-500/20 rounded-full flex items-center justify-center">
-                  <svg className="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              <div style={{ padding: 24, textAlign: 'center' }}>
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    margin: '0 auto 12px',
+                    borderRadius: 10,
+                    background: 'var(--pitch-tint)',
+                    border: '1px solid oklch(0.72 0.21 145 / 0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--pitch)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <p className="text-white font-medium">Thank you!</p>
-                <p className="text-slate-400 text-sm">Your feedback helps us improve.</p>
+                <div className="display" style={{ fontSize: 14, letterSpacing: '-0.01em' }}>
+                  Thank you!
+                </div>
+                <div className="mono" style={{ fontSize: 11, color: 'var(--text-mute)', marginTop: 4 }}>
+                  Your feedback helps us improve.
+                </div>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="p-4 space-y-4">
-                {/* Feedback Type */}
-                <div className="flex gap-2">
-                  {[
-                    { value: 'bug', label: 'Bug', icon: '🐛' },
-                    { value: 'feature', label: 'Feature', icon: '💡' },
-                    { value: 'general', label: 'General', icon: '💬' },
-                  ].map((type) => (
-                    <button
-                      key={type.value}
-                      type="button"
-                      onClick={() => setFeedbackType(type.value as FeedbackType)}
-                      className={cn(
-                        'flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors',
-                        feedbackType === type.value
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                          : 'bg-slate-800 text-slate-400 hover:text-white'
-                      )}
-                    >
-                      <span className="mr-1">{type.icon}</span>
-                      {type.label}
-                    </button>
-                  ))}
+              <form
+                onSubmit={handleSubmit}
+                style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}
+              >
+                {/* Type */}
+                <div className="flex" style={{ gap: 4 }}>
+                  {TYPE_OPTIONS.map((opt) => {
+                    const IconCmp = Icon[opt.icon];
+                    const isActive = feedbackType === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setFeedbackType(opt.value)}
+                        style={{
+                          flex: 1,
+                          padding: '6px 8px',
+                          background: isActive ? 'var(--pitch-tint)' : 'var(--surface-2)',
+                          border: '1px solid ' + (isActive ? 'var(--pitch)' : 'var(--line)'),
+                          borderRadius: 6,
+                          color: isActive ? 'var(--pitch)' : 'var(--text-dim)',
+                          cursor: 'pointer',
+                          fontFamily: 'var(--font-display)',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          letterSpacing: '0.02em',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 4,
+                        }}
+                      >
+                        <IconCmp size={11} />
+                        {opt.label}
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* Message */}
-                <div>
-                  <textarea
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    placeholder={
-                      feedbackType === 'bug'
-                        ? "Describe the bug you found..."
-                        : feedbackType === 'feature'
-                        ? "Describe the feature you'd like..."
-                        : "Share your thoughts..."
-                    }
-                    rows={4}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-                    required
-                  />
-                </div>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder={
+                    feedbackType === 'bug'
+                      ? 'Describe the bug you spotted…'
+                      : feedbackType === 'feature'
+                      ? 'What feature would you like to see?'
+                      : 'Share your thoughts with us…'
+                  }
+                  rows={4}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    background: 'var(--surface-2)',
+                    border: '1px solid var(--line)',
+                    borderRadius: 6,
+                    color: 'var(--text)',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: 13,
+                    lineHeight: 1.5,
+                    resize: 'vertical',
+                    outline: 'none',
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--pitch)';
+                    e.currentTarget.style.background = 'var(--surface)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--line)';
+                    e.currentTarget.style.background = 'var(--surface-2)';
+                  }}
+                />
 
-                {/* Email (optional for non-logged in users) */}
                 {!currentUser && (
-                  <div>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="Email (optional, for follow-up)"
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    />
-                  </div>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Email (optional, for follow-up)"
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      background: 'var(--surface-2)',
+                      border: '1px solid var(--line)',
+                      borderRadius: 6,
+                      color: 'var(--text)',
+                      fontFamily: 'var(--font-body)',
+                      fontSize: 12,
+                      outline: 'none',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--pitch)';
+                      e.currentTarget.style.background = 'var(--surface)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--line)';
+                      e.currentTarget.style.background = 'var(--surface-2)';
+                    }}
+                  />
                 )}
 
-                {/* Submit */}
                 <button
                   type="submit"
                   disabled={isSubmitting || !message.trim()}
-                  className={cn(
-                    'w-full py-2 rounded-lg font-medium transition-colors',
-                    'bg-emerald-500 hover:bg-emerald-600 text-white',
-                    (isSubmitting || !message.trim()) && 'opacity-50 cursor-not-allowed'
-                  )}
+                  className="stadium-btn stadium-btn-primary"
+                  style={{
+                    width: '100%',
+                    justifyContent: 'center',
+                    padding: '10px 14px',
+                    fontSize: 12,
+                  }}
                 >
-                  {isSubmitting ? 'Sending...' : 'Send Feedback'}
+                  {isSubmitting ? (
+                    <>
+                      <span
+                        style={{
+                          width: 12,
+                          height: 12,
+                          border: '2px solid currentColor',
+                          borderTopColor: 'transparent',
+                          borderRadius: '50%',
+                          animation: 'stadium-spin 0.9s linear infinite',
+                        }}
+                      />
+                      Sending…
+                    </>
+                  ) : (
+                    'Send feedback'
+                  )}
                 </button>
 
-                <p className="text-xs text-slate-500 text-center">
-                  We read every piece of feedback!
+                <p
+                  className="mono"
+                  style={{
+                    textAlign: 'center',
+                    fontSize: 9,
+                    color: 'var(--text-mute)',
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    margin: 0,
+                  }}
+                >
+                  We read every piece of feedback
                 </p>
               </form>
             )}

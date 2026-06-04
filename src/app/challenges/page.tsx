@@ -1,16 +1,14 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '@/store/useStore';
-import { AppLayout, Button } from '@/components';
-import { ChallengeCard, CreateChallengeModal, ChallengeResultCard, ChallengeLeaderboard } from '@/components/challenge';
-import { MAX_ACTIVE_CHALLENGES, CHALLENGE_XP } from '@/types';
-import { cn } from '@/lib/utils';
-import { useTheme } from '@/components/ThemeProvider';
+import { AppLayout } from '@/components';
+import { CreateChallengeModal } from '@/components/challenge';
+import { MAX_ACTIVE_CHALLENGES, CHALLENGE_XP, Challenge, CHALLENGE_TIMEFRAMES } from '@/types';
+import { Icon } from '@/components/stadium/Icon';
+import { formatPercent, getRelativeTime } from '@/lib/utils';
 
 export default function ChallengesPage() {
-  const { resolvedTheme } = useTheme();
   const {
     currentUser,
     isAuthenticated,
@@ -24,364 +22,780 @@ export default function ChallengesPage() {
   } = useStore();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'active' | 'pending' | 'history' | 'leaderboard'>('active');
 
   useEffect(() => {
-    if (isAuthenticated) {
-      loadChallenges();
-    }
+    if (isAuthenticated) loadChallenges();
   }, [isAuthenticated, loadChallenges]);
 
   const stats = useMemo(() => {
-    const totalChallenges = challenges.length;
-    const wins = completedChallenges.filter(
-      (c) => c.winnerId === currentUser?.id
-    ).length;
+    const wins = completedChallenges.filter((c) => c.winnerId === currentUser?.id).length;
     const losses = completedChallenges.filter(
-      (c) => c.winnerId !== null && c.winnerId !== currentUser?.id && c.winnerId !== 'sp500'
+      (c) => c.winnerId !== null && c.winnerId !== currentUser?.id && c.winnerId !== 'sp500',
     ).length;
-    // Include S&P 500 wins/losses
     const sp500Wins = completedChallenges.filter(
-      (c) => c.type === 'sp500' && c.winnerId === currentUser?.id
+      (c) => c.type === 'sp500' && c.winnerId === currentUser?.id,
     ).length;
     const sp500Losses = completedChallenges.filter(
-      (c) => c.type === 'sp500' && c.winnerId === 'sp500'
+      (c) => c.type === 'sp500' && c.winnerId === 'sp500',
     ).length;
-
     const totalWins = wins + sp500Wins;
     const totalLosses = losses + sp500Losses;
-    const winRate = totalChallenges > 0 ? (totalWins / (totalWins + totalLosses)) * 100 : 0;
-
+    const winRate =
+      challenges.length > 0 ? (totalWins / Math.max(1, totalWins + totalLosses)) * 100 : 0;
     return {
       active: getActiveChallengesCount(),
       pending: pendingChallenges.length,
-      total: totalChallenges,
       wins: totalWins,
       losses: totalLosses,
-      winRate: isNaN(winRate) ? 0 : winRate,
+      winRate: Number.isNaN(winRate) ? 0 : winRate,
     };
   }, [challenges, completedChallenges, pendingChallenges, currentUser, getActiveChallengesCount]);
 
+  // Sort recent results most-recent-first
+  const recent = useMemo(() => {
+    return [...completedChallenges]
+      .sort((a, b) => {
+        const aTime = new Date(a.settledAt || a.endDate || a.createdAt).getTime();
+        const bTime = new Date(b.settledAt || b.endDate || b.createdAt).getTime();
+        return bTime - aTime;
+      })
+      .slice(0, 10);
+  }, [completedChallenges]);
+
   return (
-    <AppLayout>
-      {/* Page Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
-      >
-        <div className="flex items-center justify-between">
+    <AppLayout flush>
+      <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 22 }}>
+        {/* Header */}
+        <div className="flex flex-wrap items-end justify-between" style={{ gap: 14 }}>
           <div>
-            <h1 className={cn(
-              'text-3xl font-bold mb-2',
-              resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900'
-            )}>
-              <span className="gradient-text">Challenges</span>
+            <div className="kicker">SEASON 1 · {todayLabel()}</div>
+            <h1
+              className="display"
+              style={{ fontSize: 'clamp(24px, 3vw, 32px)', letterSpacing: '-0.04em', margin: '2px 0 0' }}
+            >
+              Fixtures
             </h1>
-            <p className={cn(
-              resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600'
-            )}>
-              Compete against the S&P 500 or other players to earn XP
-            </p>
-          </div>
-          <Button onClick={() => setShowCreateModal(true)}>
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            New Challenge
-          </Button>
-        </div>
-      </motion.div>
-
-      {/* Stats Cards */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8"
-      >
-        <div className={cn(
-          'rounded-2xl p-6 border',
-          resolvedTheme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-        )}>
-          <div className="flex items-center justify-between mb-2">
-            <span className={cn('text-sm', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>Active</span>
-            <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
-              <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-mute)', marginTop: 6 }}>
+              Compete against the index or other managers · {activeChallenges.length} live ·{' '}
+              {pendingChallenges.length} pending · {completedChallenges.length} played
             </div>
           </div>
-          <p className={cn('text-2xl font-bold', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>
-            {stats.active}/{MAX_ACTIVE_CHALLENGES}
-          </p>
-        </div>
-
-        <div className={cn(
-          'rounded-2xl p-6 border',
-          resolvedTheme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-        )}>
-          <div className="flex items-center justify-between mb-2">
-            <span className={cn('text-sm', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>Pending</span>
-            <div className="w-8 h-8 bg-yellow-500/20 rounded-lg flex items-center justify-center">
-              <svg className="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-          </div>
-          <p className={cn('text-2xl font-bold', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>{stats.pending}</p>
-        </div>
-
-        <div className={cn(
-          'rounded-2xl p-6 border',
-          resolvedTheme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-        )}>
-          <div className="flex items-center justify-between mb-2">
-            <span className={cn('text-sm', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>Win Rate</span>
-            <div className="w-8 h-8 bg-emerald-500/20 rounded-lg flex items-center justify-center">
-              <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-          </div>
-          <p className={cn('text-2xl font-bold', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>{stats.winRate.toFixed(0)}%</p>
-        </div>
-
-        <div className={cn(
-          'rounded-2xl p-6 border',
-          resolvedTheme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-        )}>
-          <div className="flex items-center justify-between mb-2">
-            <span className={cn('text-sm', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>Record</span>
-            <div className="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center">
-              <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-            </div>
-          </div>
-          <p className={cn('text-2xl font-bold', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>
-            <span className="text-emerald-400">{stats.wins}W</span>
-            {' - '}
-            <span className="text-red-400">{stats.losses}L</span>
-          </p>
-        </div>
-      </motion.div>
-
-      {/* XP Stakes Info */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
-        className={cn(
-          'mb-8 p-4 rounded-xl border',
-          resolvedTheme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-        )}
-      >
-        <div className="flex flex-wrap gap-6 justify-center text-sm">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
-              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-              </svg>
-            </div>
-            <span className={cn(resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>vs S&P 500:</span>
-            <span className="text-amber-500 font-semibold">{CHALLENGE_XP.VS_SP500} XP</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-gradient-to-br from-purple-400 to-pink-500 rounded-full flex items-center justify-center">
-              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197" />
-              </svg>
-            </div>
-            <span className={cn(resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>vs User:</span>
-            <span className="text-purple-500 font-semibold">{CHALLENGE_XP.VS_USER} XP</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className={cn(resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>Max active:</span>
-            <span className={cn('font-semibold', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>{MAX_ACTIVE_CHALLENGES}</span>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Tabs */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="mb-6"
-      >
-        <div className={cn(
-          'flex gap-2 p-1 rounded-xl w-fit border',
-          resolvedTheme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-100 border-slate-200'
-        )}>
           <button
-            onClick={() => setActiveTab('active')}
-            className={cn(
-              'px-4 py-2 rounded-lg text-sm font-medium transition-all',
-              activeTab === 'active'
-                ? 'bg-emerald-500 text-white'
-                : resolvedTheme === 'dark'
-                  ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-            )}
+            type="button"
+            className="stadium-btn stadium-btn-primary"
+            onClick={() => setShowCreateModal(true)}
           >
-            Active ({activeChallenges.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('pending')}
-            className={cn(
-              'px-4 py-2 rounded-lg text-sm font-medium transition-all',
-              activeTab === 'pending'
-                ? 'bg-emerald-500 text-white'
-                : resolvedTheme === 'dark'
-                  ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-            )}
-          >
-            Pending ({pendingChallenges.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('history')}
-            className={cn(
-              'px-4 py-2 rounded-lg text-sm font-medium transition-all',
-              activeTab === 'history'
-                ? 'bg-emerald-500 text-white'
-                : resolvedTheme === 'dark'
-                  ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-            )}
-          >
-            History ({completedChallenges.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('leaderboard')}
-            className={cn(
-              'px-4 py-2 rounded-lg text-sm font-medium transition-all',
-              activeTab === 'leaderboard'
-                ? 'bg-emerald-500 text-white'
-                : resolvedTheme === 'dark'
-                  ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-            )}
-          >
-            Leaderboard
+            <Icon.Plus size={14} /> New fixture
           </button>
         </div>
-      </motion.div>
 
-      {/* Content */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.25 }}
-      >
-        {challengesLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="w-12 h-12 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+        {/* Stat tiles */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+            gap: 12,
+          }}
+        >
+          <StatTile
+            kicker="LIVE"
+            value={`${stats.active} / ${MAX_ACTIVE_CHALLENGES}`}
+            sub="Active fixtures"
+            tone={stats.active > 0 ? 'pos' : undefined}
+          />
+          <StatTile kicker="PENDING" value={`${stats.pending}`} sub="Awaiting kick-off" />
+          <StatTile
+            kicker="WIN %"
+            value={`${stats.winRate.toFixed(0)}%`}
+            sub="Career win rate"
+            tone={stats.winRate >= 50 ? 'pos' : stats.winRate > 0 ? 'neg' : undefined}
+          />
+          <StatTile
+            kicker="RECORD"
+            value={
+              <>
+                <span style={{ color: 'var(--pitch)' }}>{stats.wins}W</span>
+                <span style={{ color: 'var(--text-mute)' }}> · </span>
+                <span style={{ color: 'var(--ref-red)' }}>{stats.losses}L</span>
+              </>
+            }
+            sub="Lifetime"
+          />
+        </div>
+
+        {/* XP stakes strip */}
+        <div
+          className="stadium-card"
+          style={{
+            padding: '10px 18px',
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            gap: 24,
+            alignItems: 'center',
+          }}
+        >
+          <div className="flex items-center" style={{ gap: 8 }}>
+            <Icon.Bolt size={14} style={{ color: 'var(--whistle)' }} />
+            <span className="kicker">VS S&P 500</span>
+            <span
+              className="mono num"
+              style={{ fontSize: 12, fontWeight: 700, color: 'var(--whistle)' }}
+            >
+              +{CHALLENGE_XP.VS_SP500} XP
+            </span>
           </div>
-        ) : (
-          <>
-            {/* Active Challenges */}
-            {activeTab === 'active' && (
-              <div>
-                {activeChallenges.length === 0 ? (
-                  <div className={cn(
-                    'border-dashed rounded-2xl p-12 text-center border',
-                    resolvedTheme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-300'
-                  )}>
-                    <div className={cn(
-                      'w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4',
-                      resolvedTheme === 'dark' ? 'bg-slate-800' : 'bg-slate-100'
-                    )}>
-                      <svg className="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                    </div>
-                    <h3 className={cn('text-lg font-semibold mb-2', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>No active challenges</h3>
-                    <p className={cn('mb-6', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>Start a new challenge to compete!</p>
-                    <Button onClick={() => setShowCreateModal(true)}>Create Challenge</Button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {activeChallenges.map((challenge) => (
-                      <ChallengeCard key={challenge.id} challenge={challenge} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+          <div style={{ width: 1, height: 16, background: 'var(--line)' }} />
+          <div className="flex items-center" style={{ gap: 8 }}>
+            <Icon.Profile size={14} style={{ color: 'var(--pitch)' }} />
+            <span className="kicker">VS MANAGER</span>
+            <span
+              className="mono num"
+              style={{ fontSize: 12, fontWeight: 700, color: 'var(--pitch)' }}
+            >
+              +{CHALLENGE_XP.VS_USER} XP
+            </span>
+          </div>
+          <div style={{ width: 1, height: 16, background: 'var(--line)' }} />
+          <div className="flex items-center" style={{ gap: 8 }}>
+            <span className="kicker">MAX ACTIVE</span>
+            <span className="mono num" style={{ fontSize: 12, fontWeight: 700 }}>
+              {MAX_ACTIVE_CHALLENGES}
+            </span>
+          </div>
+        </div>
 
-            {/* Pending Challenges */}
-            {activeTab === 'pending' && (
-              <div>
-                {pendingChallenges.length === 0 ? (
-                  <div className={cn(
-                    'border-dashed rounded-2xl p-12 text-center border',
-                    resolvedTheme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-300'
-                  )}>
-                    <div className={cn(
-                      'w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4',
-                      resolvedTheme === 'dark' ? 'bg-slate-800' : 'bg-slate-100'
-                    )}>
-                      <svg className="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <h3 className={cn('text-lg font-semibold mb-2', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>No pending invites</h3>
-                    <p className={cn(resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>Challenge invites from other users will appear here.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {pendingChallenges.map((challenge) => (
-                      <ChallengeCard key={challenge.id} challenge={challenge} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+        {/* Live Now */}
+        <section>
+          <SectionHeader
+            title="Live Now"
+            sub={`${activeChallenges.length} match${activeChallenges.length === 1 ? '' : 'es'} in progress`}
+            right={
+              activeChallenges.length > 0 ? (
+                <span className="pill pill-red">
+                  <span className="live-dot" /> {activeChallenges.length} LIVE
+                </span>
+              ) : null
+            }
+          />
+          {challengesLoading ? (
+            <LoadingCard />
+          ) : activeChallenges.length === 0 ? (
+            <EmptyState
+              icon="Fixture"
+              title="No fixtures kicked off yet"
+              sub="Set up a match against the index or a rival manager — your XI vs theirs, settled at full-time."
+              cta="Set up a fixture"
+              onCta={() => setShowCreateModal(true)}
+            />
+          ) : (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))',
+                gap: 14,
+              }}
+            >
+              {activeChallenges.map((c) => (
+                <BigMatchCard key={c.id} challenge={c} myUserId={currentUser?.id} />
+              ))}
+            </div>
+          )}
+        </section>
 
-            {/* Challenge History */}
-            {activeTab === 'history' && (
-              <div>
-                {completedChallenges.length === 0 ? (
-                  <div className={cn(
-                    'border-dashed rounded-2xl p-12 text-center border',
-                    resolvedTheme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-300'
-                  )}>
-                    <div className={cn(
-                      'w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4',
-                      resolvedTheme === 'dark' ? 'bg-slate-800' : 'bg-slate-100'
-                    )}>
-                      <svg className="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                      </svg>
-                    </div>
-                    <h3 className={cn('text-lg font-semibold mb-2', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>No challenge history</h3>
-                    <p className={cn(resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>Completed challenges will appear here.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {completedChallenges.map((challenge) => (
-                      <ChallengeResultCard key={challenge.id} challenge={challenge} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+        {/* Upcoming */}
+        <section>
+          <SectionHeader
+            title="Upcoming"
+            sub={pendingChallenges.length > 0 ? 'Awaiting kick-off' : 'Nothing pending — set up a new fixture'}
+          />
+          {challengesLoading ? (
+            <LoadingCard />
+          ) : pendingChallenges.length === 0 ? (
+            <EmptyHint label="No upcoming fixtures. Challenge a rival or a benchmark." />
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {pendingChallenges.map((c) => (
+                <FixtureRow key={c.id} challenge={c} myUserId={currentUser?.id} mode="upcoming" />
+              ))}
+            </div>
+          )}
+        </section>
 
-            {/* Leaderboard */}
-            {activeTab === 'leaderboard' && (
-              <ChallengeLeaderboard limit={20} />
-            )}
-          </>
-        )}
-      </motion.div>
+        {/* Recent Results */}
+        <section>
+          <SectionHeader
+            title="Recent Results"
+            sub={completedChallenges.length > 0 ? `${completedChallenges.length} played this season` : 'Once a fixture hits full-time it lands here'}
+          />
+          {challengesLoading ? (
+            <LoadingCard />
+          ) : recent.length === 0 ? (
+            <EmptyHint label="No completed fixtures yet." />
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {recent.map((c) => (
+                <FixtureRow key={c.id} challenge={c} myUserId={currentUser?.id} mode="result" />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
 
-      {/* Create Challenge Modal */}
-      <CreateChallengeModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-      />
+      <CreateChallengeModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} />
     </AppLayout>
   );
 }
+
+function todayLabel() {
+  return new Date()
+    .toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+    .toUpperCase();
+}
+
+const SectionHeader: React.FC<{
+  title: string;
+  sub?: string;
+  right?: React.ReactNode;
+}> = ({ title, sub, right }) => (
+  <div
+    className="flex flex-wrap items-end justify-between"
+    style={{ marginBottom: 10, gap: 8 }}
+  >
+    <div>
+      <div className="display" style={{ fontSize: 18, letterSpacing: '-0.03em' }}>
+        {title}
+      </div>
+      {sub && (
+        <div className="mono" style={{ fontSize: 11, color: 'var(--text-mute)', marginTop: 2 }}>
+          {sub}
+        </div>
+      )}
+    </div>
+    {right}
+  </div>
+);
+
+const StatTile: React.FC<{
+  kicker: string;
+  value: React.ReactNode;
+  sub?: string;
+  tone?: 'pos' | 'neg';
+}> = ({ kicker, value, sub, tone }) => (
+  <div className="stadium-card" style={{ padding: 14 }}>
+    <div className="kicker">{kicker}</div>
+    <div
+      className="display num"
+      style={{
+        fontSize: 22,
+        letterSpacing: '-0.04em',
+        marginTop: 4,
+        color: tone === 'pos' ? 'var(--pitch)' : tone === 'neg' ? 'var(--ref-red)' : 'var(--text)',
+      }}
+    >
+      {value}
+    </div>
+    {sub && (
+      <div className="mono" style={{ fontSize: 11, color: 'var(--text-mute)', marginTop: 4 }}>
+        {sub}
+      </div>
+    )}
+  </div>
+);
+
+const LoadingCard: React.FC = () => (
+  <div
+    className="stadium-card"
+    style={{
+      padding: 36,
+      display: 'flex',
+      justifyContent: 'center',
+    }}
+  >
+    <div className="stadium-spinner" style={{ width: 32, height: 32 }} />
+  </div>
+);
+
+const EmptyHint: React.FC<{ label: string }> = ({ label }) => (
+  <div
+    className="stadium-card"
+    style={{
+      padding: 24,
+      textAlign: 'center',
+      borderStyle: 'dashed',
+    }}
+  >
+    <div className="kicker">{label}</div>
+  </div>
+);
+
+const EmptyState: React.FC<{
+  icon: keyof typeof Icon;
+  title: string;
+  sub: string;
+  cta?: string;
+  onCta?: () => void;
+}> = ({ icon, title, sub, cta, onCta }) => {
+  const I = Icon[icon] as React.FC<{ size?: number; style?: React.CSSProperties }>;
+  return (
+    <div
+      className="stadium-card"
+      style={{
+        padding: 36,
+        textAlign: 'center',
+        borderStyle: 'dashed',
+      }}
+    >
+      <I size={36} style={{ color: 'var(--text-mute)', margin: '0 auto 10px' }} />
+      <div className="display" style={{ fontSize: 16, marginBottom: 4 }}>
+        {title}
+      </div>
+      <div style={{ color: 'var(--text-dim)', fontSize: 12, maxWidth: 440, margin: '0 auto 14px' }}>
+        {sub}
+      </div>
+      {cta && (
+        <button type="button" className="stadium-btn stadium-btn-primary" onClick={onCta}>
+          <Icon.Plus size={14} /> {cta}
+        </button>
+      )}
+    </div>
+  );
+};
+
+/* ============================================================
+   BigMatchCard — used for live fixtures
+   ============================================================ */
+const BigMatchCard: React.FC<{ challenge: Challenge; myUserId?: string }> = ({ challenge, myUserId }) => {
+  const amChallenger = challenge.challengerId === myUserId;
+  const myReturn = amChallenger ? challenge.challengerReturnPercent : challenge.opponentReturnPercent;
+  const theirReturn = amChallenger ? challenge.opponentReturnPercent : challenge.challengerReturnPercent;
+  const opponentName =
+    challenge.type === 'sp500'
+      ? 'S&P 500'
+      : amChallenger
+      ? challenge.opponentUsername || 'TBD'
+      : challenge.challengerUsername || 'Challenger';
+  const mySquad = amChallenger
+    ? challenge.challengerPortfolioName
+    : challenge.opponentPortfolioName;
+
+  const leading = (myReturn ?? 0) > (theirReturn ?? 0);
+  const fmt = (n: number | null) => (n == null ? '—' : `${n >= 0 ? '+' : ''}${n.toFixed(2)}`);
+
+  // Match clock — progress through the timeframe
+  const { progress, endsIn } = useMemo(() => {
+    if (!challenge.startDate || !challenge.endDate) return { progress: 0, endsIn: '—' };
+    const startMs = new Date(challenge.startDate).getTime();
+    const endMs = new Date(challenge.endDate).getTime();
+    const now = Date.now();
+    const total = endMs - startMs;
+    const elapsed = Math.max(0, Math.min(total, now - startMs));
+    const pct = total > 0 ? (elapsed / total) * 100 : 0;
+
+    const remaining = endMs - now;
+    let endStr = '—';
+    if (remaining <= 0) endStr = 'Closing';
+    else {
+      const days = Math.floor(remaining / 86400000);
+      const hours = Math.floor((remaining % 86400000) / 3600000);
+      endStr = days > 0 ? `${days}d ${hours}h` : `${hours}h`;
+    }
+    return { progress: pct, endsIn: endStr };
+  }, [challenge.startDate, challenge.endDate]);
+
+  const timeframeLabel = CHALLENGE_TIMEFRAMES.find((t) => t.value === challenge.timeframe)?.label || challenge.timeframe;
+  const xpStake = challenge.type === 'sp500' ? CHALLENGE_XP.VS_SP500 : CHALLENGE_XP.VS_USER;
+
+  return (
+    <div
+      className="stadium-card"
+      style={{
+        padding: 18,
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Leading stripe at top */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 3,
+          background: leading ? 'var(--pitch)' : 'var(--ref-red)',
+        }}
+      />
+
+      <div
+        className="flex justify-between items-center"
+        style={{ marginBottom: 14, gap: 6 }}
+      >
+        <span className="pill pill-red">
+          <span className="live-dot" /> LIVE
+        </span>
+        <span className="kicker">
+          {challenge.type === 'sp500' ? 'BENCHMARK' : 'HEAD-TO-HEAD'} · {timeframeLabel} · {endsIn} LEFT
+        </span>
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr auto 1fr',
+          gap: 14,
+          alignItems: 'center',
+        }}
+      >
+        <div>
+          <div className="kicker">YOU</div>
+          <div
+            className="display num"
+            style={{
+              fontSize: 30,
+              color: leading ? 'var(--pitch)' : 'var(--text)',
+              letterSpacing: '-0.04em',
+              lineHeight: 1,
+            }}
+          >
+            {fmt(myReturn)}
+            <span style={{ fontSize: 16, opacity: 0.65 }}>%</span>
+          </div>
+          <div
+            className="mono"
+            style={{
+              fontSize: 10,
+              color: 'var(--text-mute)',
+              marginTop: 4,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {mySquad}
+          </div>
+        </div>
+
+        <div
+          className="display"
+          style={{ fontSize: 13, color: 'var(--text-mute)', letterSpacing: '0.2em' }}
+        >
+          VS
+        </div>
+
+        <div style={{ textAlign: 'right' }}>
+          <div className="kicker">{opponentName.toUpperCase()}</div>
+          <div
+            className="display num"
+            style={{
+              fontSize: 30,
+              color: !leading && theirReturn != null ? 'var(--ref-red)' : 'var(--text)',
+              letterSpacing: '-0.04em',
+              lineHeight: 1,
+            }}
+          >
+            {fmt(theirReturn)}
+            <span style={{ fontSize: 16, opacity: 0.65 }}>%</span>
+          </div>
+          <div className="mono" style={{ fontSize: 10, color: 'var(--text-mute)', marginTop: 4 }}>
+            {challenge.type === 'sp500' ? 'Market Index' : 'Rival Manager'}
+          </div>
+        </div>
+      </div>
+
+      {/* Match progress bar */}
+      <div style={{ marginTop: 16 }}>
+        <div
+          className="mono"
+          style={{
+            fontSize: 9,
+            color: 'var(--text-mute)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            marginBottom: 6,
+            letterSpacing: '0.12em',
+          }}
+        >
+          <span>KICK-OFF</span>
+          <span>FULL-TIME</span>
+        </div>
+        <div
+          style={{
+            height: 4,
+            background: 'var(--surface-2)',
+            borderRadius: 2,
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              width: `${Math.min(100, Math.max(0, progress))}%`,
+              height: '100%',
+              background: leading ? 'var(--pitch)' : 'var(--ref-red)',
+              transition: 'width .3s ease',
+            }}
+          />
+        </div>
+      </div>
+
+      <div
+        className="flex justify-between items-center"
+        style={{ marginTop: 12 }}
+      >
+        <div className="flex items-center" style={{ gap: 6 }}>
+          <Icon.Trophy size={14} style={{ color: 'var(--whistle)' }} />
+          <span
+            className="mono num"
+            style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)' }}
+          >
+            {xpStake} XP STAKED
+          </span>
+        </div>
+        <div className="mono" style={{ fontSize: 10, color: 'var(--text-mute)', letterSpacing: '0.1em' }}>
+          {leading ? 'YOU LEAD' : myReturn != null && theirReturn != null ? 'BEHIND' : 'WAITING ON DATA'}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ============================================================
+   FixtureRow — used for upcoming + completed fixtures
+   ============================================================ */
+const FixtureRow: React.FC<{
+  challenge: Challenge;
+  myUserId?: string;
+  mode: 'upcoming' | 'result';
+}> = ({ challenge, myUserId, mode }) => {
+  const { acceptChallenge, declineChallenge, cancelChallenge, portfolios } = useStore();
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedPortfolioId, setSelectedPortfolioId] = useState('');
+
+  const amChallenger = challenge.challengerId === myUserId;
+  const amOpponent = challenge.opponentId === myUserId;
+  const myReturn = amChallenger ? challenge.challengerReturnPercent : challenge.opponentReturnPercent;
+  const theirReturn = amChallenger ? challenge.opponentReturnPercent : challenge.challengerReturnPercent;
+  const opponentName =
+    challenge.type === 'sp500'
+      ? 'S&P 500'
+      : amChallenger
+      ? challenge.opponentUsername || 'TBD'
+      : challenge.challengerUsername || 'Challenger';
+
+  const fmt = (n: number | null) => (n == null ? '—' : `${n >= 0 ? '+' : ''}${n.toFixed(2)}`);
+  const timeframeLabel = CHALLENGE_TIMEFRAMES.find((t) => t.value === challenge.timeframe)?.label || challenge.timeframe;
+  const isWin = challenge.winnerId === myUserId;
+  const isDraw = challenge.winnerId == null && challenge.status === 'completed';
+
+  const handleAccept = async () => {
+    if (!selectedPortfolioId) return;
+    setIsLoading(true);
+    try { await acceptChallenge(challenge.id, selectedPortfolioId); } finally { setIsLoading(false); }
+  };
+  const handleDecline = async () => {
+    setIsLoading(true);
+    try { await declineChallenge(challenge.id); } finally { setIsLoading(false); }
+  };
+  const handleCancel = async () => {
+    setIsLoading(true);
+    try { await cancelChallenge(challenge.id); } finally { setIsLoading(false); }
+  };
+
+  return (
+    <div
+      className="stadium-card"
+      style={{
+        padding: '12px 16px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: amOpponent && mode === 'upcoming' ? 10 : 0,
+      }}
+    >
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '70px 1fr auto',
+          gap: 12,
+          alignItems: 'center',
+        }}
+      >
+        {/* Status column */}
+        <div>
+          {mode === 'upcoming' && (
+            <span className="pill pill-whistle" style={{ padding: '2px 6px' }}>
+              PENDING
+            </span>
+          )}
+          {mode === 'result' && (
+            <span className={'pill ' + (isWin ? 'pill-pitch' : isDraw ? 'pill-sky' : 'pill-red')} style={{ padding: '2px 6px' }}>
+              {isWin ? 'WIN' : isDraw ? 'DRAW' : 'LOSS'}
+            </span>
+          )}
+        </div>
+
+        {/* Match line */}
+        <div style={{ minWidth: 0 }}>
+          <div className="kicker">
+            {challenge.type === 'sp500' ? 'VS S&P 500' : 'VS MANAGER'} · {timeframeLabel}
+          </div>
+          <div className="flex items-baseline" style={{ gap: 10, marginTop: 2, flexWrap: 'wrap' }}>
+            <span className="display" style={{ fontSize: 14, letterSpacing: '-0.01em' }}>
+              You
+            </span>
+            {mode === 'result' && (
+              <span
+                className="mono num"
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: (myReturn ?? 0) >= 0 ? 'var(--pitch)' : 'var(--ref-red)',
+                }}
+              >
+                {fmt(myReturn)}
+              </span>
+            )}
+            <span className="kicker" style={{ opacity: 0.6 }}>VS</span>
+            <span
+              className="display"
+              style={{
+                fontSize: 14,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                maxWidth: 160,
+              }}
+            >
+              {opponentName}
+            </span>
+            {mode === 'result' && (
+              <span
+                className="mono num"
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: (theirReturn ?? 0) >= 0 ? 'var(--pitch)' : 'var(--ref-red)',
+                }}
+              >
+                {fmt(theirReturn)}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Right column */}
+        <div style={{ textAlign: 'right' }}>
+          {mode === 'upcoming' && (
+            <>
+              <div className="kicker">CREATED</div>
+              <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                {getRelativeTime(challenge.createdAt)}
+              </div>
+            </>
+          )}
+          {mode === 'result' && (
+            <>
+              <div className="kicker">SETTLED</div>
+              <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                {challenge.settledAt
+                  ? new Date(challenge.settledAt).toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                    })
+                  : '—'}
+              </div>
+              {challenge.xpAwarded != null && (
+                <div
+                  className="mono num"
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: isWin ? 'var(--pitch)' : 'var(--text-mute)',
+                    marginTop: 2,
+                  }}
+                >
+                  {isWin ? '+' : ''}{challenge.xpAwarded} XP
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Inline actions for the opponent of a pending invite */}
+      {mode === 'upcoming' && amOpponent && challenge.type === 'user' && (
+        <div
+          className="flex flex-wrap"
+          style={{
+            gap: 8,
+            paddingTop: 10,
+            borderTop: '1px solid var(--line)',
+            alignItems: 'center',
+          }}
+        >
+          <select
+            value={selectedPortfolioId}
+            onChange={(e) => setSelectedPortfolioId(e.target.value)}
+            style={{
+              flex: 1,
+              minWidth: 200,
+              padding: '6px 10px',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              background: 'var(--surface)',
+              color: 'var(--text)',
+              border: '1px solid var(--line)',
+              borderRadius: 6,
+            }}
+          >
+            <option value="">Pick your squad…</option>
+            {portfolios.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="stadium-btn stadium-btn-primary"
+            style={{ padding: '6px 14px', fontSize: 11 }}
+            onClick={handleAccept}
+            disabled={isLoading || !selectedPortfolioId}
+          >
+            Accept
+          </button>
+          <button
+            type="button"
+            className="stadium-btn stadium-btn-ghost"
+            style={{ padding: '6px 14px', fontSize: 11 }}
+            onClick={handleDecline}
+            disabled={isLoading}
+          >
+            Decline
+          </button>
+        </div>
+      )}
+
+      {/* Cancel button for the challenger of a pending fixture */}
+      {mode === 'upcoming' && amChallenger && (
+        <div
+          className="flex justify-end"
+          style={{
+            paddingTop: 10,
+            borderTop: '1px solid var(--line)',
+            marginTop: 4,
+          }}
+        >
+          <button
+            type="button"
+            className="stadium-btn stadium-btn-ghost"
+            style={{ padding: '6px 12px', fontSize: 11 }}
+            onClick={handleCancel}
+            disabled={isLoading}
+          >
+            Cancel fixture
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};

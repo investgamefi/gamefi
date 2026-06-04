@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { useStore } from '@/store/useStore';
-import { Button, Input } from '@/components/ui';
+import { Input } from '@/components/ui';
+import { Icon } from '@/components/stadium/Icon';
 
 interface LoginFormProps {
   onSwitchToRegister: () => void;
@@ -25,19 +26,15 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
       setError('Please enter your username or email');
       return;
     }
-
     if (!password) {
       setError('Please enter your password');
       return;
     }
 
     setIsLoading(true);
-
     try {
       const result = await login(identifier, password);
-      if (!result.success) {
-        setError(result.error || 'Login failed');
-      }
+      if (!result.success) setError(result.error || 'Login failed');
     } catch {
       setError('An unexpected error occurred');
     } finally {
@@ -46,61 +43,130 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
-      {/* Background Effects */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl" />
-      </div>
+    <div
+      className="stadium-root"
+      data-theme="dark"
+      style={{
+        minHeight: '100vh',
+        background: 'var(--bg)',
+        color: 'var(--text)',
+        position: 'relative',
+        overflow: 'hidden',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+    >
+      {/* Faint chalk grid backdrop (same as landing hero) */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundImage:
+            'linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px)',
+          backgroundSize: '64px 64px',
+          opacity: 0.35,
+          maskImage: 'radial-gradient(ellipse at center, #000 30%, transparent 70%)',
+          WebkitMaskImage: 'radial-gradient(ellipse at center, #000 30%, transparent 70%)',
+          pointerEvents: 'none',
+        }}
+      />
 
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="relative w-full max-w-md"
+        style={{ position: 'relative', width: '100%', maxWidth: 420 }}
       >
-        {/* Logo and Title */}
-        <div className="text-center mb-8">
-          <motion.div
-            initial={{ scale: 0.8 }}
-            animate={{ scale: 1 }}
-            transition={{ type: 'spring', duration: 0.6 }}
-            className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center shadow-2xl shadow-emerald-500/30"
+        {/* Logo + title */}
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <Link
+            href="/"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 10,
+              textDecoration: 'none',
+              marginBottom: 18,
+            }}
           >
-            <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </motion.div>
-          <h1 className="text-3xl font-bold text-white mb-2">Gamefi Invest</h1>
-          <p className="text-slate-400">Build your investment dream team</p>
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 8,
+                background: 'var(--text)',
+                color: 'var(--bg)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Icon.Logo size={28} />
+            </div>
+            <div style={{ textAlign: 'left' }}>
+              <div className="display" style={{ fontSize: 18, letterSpacing: '-0.03em', color: 'var(--text)' }}>
+                GAMEFI
+              </div>
+              <div className="kicker" style={{ fontSize: 9, marginTop: -2 }}>
+                INVEST · LEAGUE
+              </div>
+            </div>
+          </Link>
+          <div className="kicker" style={{ marginBottom: 4 }}>WELCOME BACK</div>
+          <h1
+            className="display"
+            style={{
+              fontSize: 30,
+              letterSpacing: '-0.04em',
+              margin: 0,
+              color: 'var(--text)',
+            }}
+          >
+            Sign in to the league
+          </h1>
         </div>
 
-        {/* Login Card */}
-        <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-8 shadow-2xl">
-          <div className="mb-6">
-            <h2 className="text-xl font-semibold text-white mb-2">Welcome Back</h2>
-            <p className="text-slate-400 text-sm">
-              Sign in with your username or email and password.
-            </p>
-          </div>
-
+        {/* Card */}
+        <div
+          className="stadium-card"
+          style={{ padding: 24, background: 'var(--surface)' }}
+        >
           {error && (
-            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-              <p className="text-sm text-red-400">{error}</p>
+            <div
+              className="stadium-card"
+              style={{
+                padding: '10px 12px',
+                marginBottom: 16,
+                background: 'oklch(0.65 0.22 25 / 0.08)',
+                borderColor: 'oklch(0.65 0.22 25 / 0.3)',
+              }}
+            >
+              <p
+                className="mono"
+                style={{
+                  fontSize: 11,
+                  color: 'var(--ref-red)',
+                  margin: 0,
+                  letterSpacing: '0.02em',
+                }}
+              >
+                {error}
+              </p>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form
+            onSubmit={handleSubmit}
+            style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+          >
             <Input
               label="Username or Email"
-              placeholder="Enter your username or email"
+              placeholder="presho or you@email.com"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
-              leftIcon={
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              }
+              leftIcon={<Icon.Profile size={14} />}
             />
 
             <Input
@@ -109,70 +175,102 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
               placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              leftIcon={
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-              }
+              leftIcon={<Icon.Bolt size={14} />}
             />
 
-            <div className="flex justify-end">
+            <div className="flex justify-end" style={{ marginTop: -4 }}>
               <Link
                 href="/forgot-password"
-                className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
+                className="mono"
+                style={{
+                  fontSize: 10,
+                  color: 'var(--pitch)',
+                  textDecoration: 'none',
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                }}
               >
-                Forgot password?
+                FORGOT PASSWORD?
               </Link>
             </div>
 
-            <Button
+            <button
               type="submit"
-              className="w-full"
-              size="lg"
-              isLoading={isLoading}
+              className="stadium-btn stadium-btn-primary"
+              style={{
+                width: '100%',
+                justifyContent: 'center',
+                padding: '12px 18px',
+                fontSize: 14,
+                marginTop: 4,
+              }}
+              disabled={isLoading}
             >
-              {isLoading ? 'Signing in...' : 'Sign In'}
-            </Button>
+              {isLoading ? (
+                <>
+                  <span
+                    style={{
+                      width: 12,
+                      height: 12,
+                      border: '2px solid currentColor',
+                      borderTopColor: 'transparent',
+                      borderRadius: '50%',
+                      animation: 'stadium-spin 0.9s linear infinite',
+                    }}
+                  />
+                  Signing in…
+                </>
+              ) : (
+                <>
+                  <Icon.Whistle size={14} /> Kick off
+                </>
+              )}
+            </button>
           </form>
 
-          {/* Switch to Register */}
-          <div className="mt-6 pt-6 border-t border-slate-800 text-center">
-            <p className="text-slate-400 text-sm">
-              Don&apos;t have an account?{' '}
+          <div
+            style={{
+              marginTop: 18,
+              paddingTop: 18,
+              borderTop: '1px solid var(--line)',
+              textAlign: 'center',
+            }}
+          >
+            <p style={{ color: 'var(--text-dim)', fontSize: 12, margin: 0 }}>
+              Not a manager yet?{' '}
               <button
+                type="button"
                 onClick={onSwitchToRegister}
-                className="text-emerald-400 hover:text-emerald-300 font-medium transition-colors"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--pitch)',
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
               >
-                Create one
+                Join the league →
               </button>
             </p>
           </div>
-
-          {/* Features Preview */}
-          <div className="mt-6 pt-6 border-t border-slate-800">
-            <p className="text-xs text-slate-500 text-center mb-4">What you can do:</p>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { icon: '🎮', text: 'Build Teams' },
-                { icon: '📊', text: 'Track Performance' },
-                { icon: '🏆', text: 'Compete' },
-                { icon: '👥', text: 'Social Trading' },
-              ].map((feature, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-2 p-2 bg-slate-800/50 rounded-lg"
-                >
-                  <span className="text-lg">{feature.icon}</span>
-                  <span className="text-xs text-slate-300">{feature.text}</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
 
-        {/* Demo Note */}
-        <p className="mt-6 text-center text-xs text-slate-500">
-          This is a demo application. Data is stored locally in your browser.
+        {/* Demo note */}
+        <p
+          className="mono"
+          style={{
+            textAlign: 'center',
+            fontSize: 9,
+            color: 'var(--text-mute)',
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            marginTop: 16,
+          }}
+        >
+          Educational paper-trading platform · Not financial advice
         </p>
       </motion.div>
     </div>

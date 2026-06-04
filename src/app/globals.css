@@ -1,259 +1,44 @@
 @import "tailwindcss";
 
-/* Dark theme (default) */
-:root,
-.dark {
-  --background: #0f172a;
-  --foreground: #f8fafc;
-  --card: #1e293b;
-  --card-foreground: #f8fafc;
-  --border: #334155;
-  --input: #1e293b;
-  --primary: #10b981;
-  --primary-foreground: #ffffff;
-  --secondary: #334155;
-  --secondary-foreground: #f8fafc;
-  --muted: #475569;
-  --muted-foreground: #94a3b8;
-  --accent: #10b981;
-  --accent-foreground: #ffffff;
-  --scrollbar-track: #1e293b;
-  --scrollbar-thumb: #475569;
-  --scrollbar-thumb-hover: #64748b;
-}
+/* ============================================================
+   GLOBAL SCROLLBAR / FOCUS / INPUT STYLES
+   Stadium token-aware. The full design system lives in stadium.css.
+   ============================================================ */
 
-/* Light theme */
-.light {
-  --background: #f1f5f9;
-  --foreground: #1e293b;
-  --card: #ffffff;
-  --card-foreground: #1e293b;
-  --border: #cbd5e1;
-  --input: #ffffff;
-  --primary: #059669;
-  --primary-foreground: #ffffff;
-  --secondary: #e2e8f0;
-  --secondary-foreground: #1e293b;
-  --muted: #e2e8f0;
-  --muted-foreground: #475569;
-  --accent: #059669;
-  --accent-foreground: #ffffff;
-  --scrollbar-track: #e2e8f0;
-  --scrollbar-thumb: #94a3b8;
-  --scrollbar-thumb-hover: #64748b;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --font-sans: var(--font-inter);
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-/* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
-
 ::-webkit-scrollbar-track {
-  background: var(--scrollbar-track);
-  border-radius: 4px;
+  background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
+  background: var(--line-2);
   border-radius: 4px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
+  background: var(--text-mute);
 }
 
-/* Selection */
 ::selection {
-  background: rgba(16, 185, 129, 0.3);
-  color: white;
+  background: oklch(0.72 0.21 145 / 0.3);
+  color: var(--text);
 }
 
-/* Focus styles */
 *:focus {
   outline: none;
 }
-
 *:focus-visible {
-  outline: 2px solid #10b981;
+  outline: 2px solid var(--pitch);
   outline-offset: 2px;
 }
 
-/* Number input spinner removal */
+/* Remove number input spinners */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
-
 input[type="number"] {
   -moz-appearance: textfield;
-}
-
-/* Custom animations */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes pulse-glow {
-  0%, 100% {
-    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
-  }
-  50% {
-    box-shadow: 0 0 40px rgba(16, 185, 129, 0.5);
-  }
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.3s ease-out;
-}
-
-.animate-pulse-glow {
-  animation: pulse-glow 2s infinite;
-}
-
-/* Gradient text */
-.gradient-text {
-  background: linear-gradient(135deg, #10b981, #14b8a6);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* Glass morphism */
-.dark .glass {
-  background: rgba(15, 23, 42, 0.8);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-.light .glass {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-/* Theme-aware card backgrounds */
-.dark .theme-card {
-  background: rgba(30, 41, 59, 0.5);
-  border-color: rgba(51, 65, 85, 1);
-}
-
-.light .theme-card {
-  background: #ffffff;
-  border-color: #cbd5e1;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-/* Theme-aware text colors */
-.dark .theme-text-primary {
-  color: #f8fafc;
-}
-
-.light .theme-text-primary {
-  color: #1e293b;
-}
-
-.dark .theme-text-secondary {
-  color: #94a3b8;
-}
-
-.light .theme-text-secondary {
-  color: #475569;
-}
-
-/* Light mode specific overrides for better visibility */
-.light {
-  /* Override slate colors for better contrast */
-  --tw-text-opacity: 1;
-}
-
-/* Light mode card with shadow */
-.light .card-elevated {
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-}
-
-/* Light mode inputs */
-.light input,
-.light select,
-.light textarea {
-  background-color: #ffffff;
-  border-color: #cbd5e1;
-  color: #1e293b;
-}
-
-.light input::placeholder,
-.light textarea::placeholder {
-  color: #94a3b8;
-}
-
-.light input:focus,
-.light select:focus,
-.light textarea:focus {
-  border-color: #10b981;
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
-}
-
-/* Light mode buttons */
-.light .btn-secondary {
-  background: #e2e8f0;
-  color: #1e293b;
-  border: 1px solid #cbd5e1;
-}
-
-.light .btn-secondary:hover {
-  background: #cbd5e1;
-}
-
-/* Ensure text visibility in light mode */
-.light h1, .light h2, .light h3, .light h4, .light h5, .light h6 {
-  color: #1e293b;
-}
-
-.light p {
-  color: #475569;
-}
-
-/* Stats and badges in light mode */
-.light .stat-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-}
-
-.light .badge {
-  background: #e2e8f0;
-  color: #1e293b;
 }

@@ -1,11 +1,10 @@
 'use client';
 
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/lib/utils';
-import { useTheme } from '@/components/ThemeProvider';
+import { Modal } from './Modal';
 import { Button } from './Button';
 import { TEAM_SLOT_UNLOCK_COST } from '@/types';
+import { Icon } from '@/components/stadium/Icon';
 
 interface TeamLimitModalProps {
   isOpen: boolean;
@@ -24,136 +23,144 @@ export const TeamLimitModal: React.FC<TeamLimitModalProps> = ({
   userXp,
   onUnlockSlot,
 }) => {
-  const { resolvedTheme } = useTheme();
   const canUnlock = userXp >= TEAM_SLOT_UNLOCK_COST;
+  const xpShortage = Math.max(0, TEAM_SLOT_UNLOCK_COST - userXp);
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={onClose}
-          />
-
-          {/* Modal */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className={cn(
-              'relative w-full max-w-md rounded-2xl shadow-2xl border overflow-hidden',
-              resolvedTheme === 'dark'
-                ? 'bg-slate-900 border-slate-800'
-                : 'bg-white border-slate-200'
-            )}
-          >
-            {/* Warning Icon */}
-            <div className={cn(
-              'flex justify-center pt-6',
-              resolvedTheme === 'dark' ? 'bg-slate-900' : 'bg-white'
-            )}>
-              <div className="w-16 h-16 bg-amber-500/20 rounded-full flex items-center justify-center">
-                <svg className="w-8 h-8 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="p-6 text-center">
-              <h3 className={cn(
-                'text-xl font-bold mb-2',
-                resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900'
-              )}>
-                Team Limit Reached
-              </h3>
-              <p className={cn(
-                'mb-4',
-                resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600'
-              )}>
-                You currently have <span className="font-semibold text-emerald-500">{currentTeams}</span> out of <span className="font-semibold text-emerald-500">{maxTeams}</span> team slots filled.
-              </p>
-              <p className={cn(
-                'text-sm mb-6',
-                resolvedTheme === 'dark' ? 'text-slate-500' : 'text-slate-500'
-              )}>
-                To create or clone a new team, you need to either delete an existing team or unlock a new slot.
-              </p>
-
-              {/* Unlock Option */}
-              <div className={cn(
-                'p-4 rounded-xl mb-6 border',
-                resolvedTheme === 'dark'
-                  ? 'bg-slate-800/50 border-slate-700'
-                  : 'bg-slate-50 border-slate-200'
-              )}>
-                <div className="flex items-center justify-between mb-3">
-                  <span className={cn(
-                    'font-medium',
-                    resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900'
-                  )}>
-                    Unlock New Slot
-                  </span>
-                  <span className="flex items-center gap-1 text-amber-500 font-semibold">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                    </svg>
-                    {TEAM_SLOT_UNLOCK_COST} XP
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-sm mb-3">
-                  <span className={cn(resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>
-                    Your XP:
-                  </span>
-                  <span className={cn(
-                    'font-medium',
-                    canUnlock ? 'text-emerald-500' : 'text-red-400'
-                  )}>
-                    {userXp} XP
-                  </span>
-                </div>
-                {canUnlock ? (
-                  <Button
-                    onClick={onUnlockSlot}
-                    className="w-full"
-                  >
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                    </svg>
-                    Unlock Slot (+1 Team)
-                  </Button>
-                ) : (
-                  <div className={cn(
-                    'text-center text-sm py-2 rounded-lg',
-                    resolvedTheme === 'dark' ? 'bg-slate-700/50 text-slate-400' : 'bg-slate-100 text-slate-500'
-                  )}>
-                    Need {TEAM_SLOT_UNLOCK_COST - userXp} more XP to unlock
-                  </div>
-                )}
-              </div>
-
-              {/* Close Button */}
-              <Button
-                onClick={onClose}
-                variant="ghost"
-                className={cn(
-                  'w-full',
-                  resolvedTheme === 'dark'
-                    ? 'border-slate-700 text-slate-400 hover:text-white'
-                    : 'border-slate-300 text-slate-600 hover:text-slate-900'
-                )}
-              >
-                Close
-              </Button>
-            </div>
-          </motion.div>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Squad limit reached"
+      subtitle="ROSTER · MAX SQUADS"
+      size="sm"
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, textAlign: 'center' }}>
+        {/* Warning icon */}
+        <div
+          style={{
+            width: 56,
+            height: 56,
+            margin: '0 auto',
+            borderRadius: 10,
+            background: 'oklch(0.83 0.18 90 / 0.1)',
+            border: '1px solid oklch(0.83 0.18 90 / 0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Icon.Whistle size={26} style={{ color: 'var(--whistle)' }} />
         </div>
-      )}
-    </AnimatePresence>
+
+        <div>
+          <p
+            style={{
+              color: 'var(--text)',
+              fontSize: 14,
+              lineHeight: 1.55,
+              margin: 0,
+              marginBottom: 6,
+            }}
+          >
+            You&apos;ve fielded{' '}
+            <strong className="display num" style={{ color: 'var(--pitch)' }}>
+              {currentTeams}
+            </strong>{' '}
+            of{' '}
+            <strong className="display num" style={{ color: 'var(--pitch)' }}>
+              {maxTeams}
+            </strong>{' '}
+            squads.
+          </p>
+          <p
+            style={{
+              color: 'var(--text-dim)',
+              fontSize: 12,
+              lineHeight: 1.55,
+              margin: 0,
+            }}
+          >
+            Disband an existing squad or unlock a new slot with XP.
+          </p>
+        </div>
+
+        {/* Unlock option */}
+        <div
+          className="stadium-card"
+          style={{
+            padding: 14,
+            background: canUnlock ? 'var(--pitch-tint)' : 'var(--surface-2)',
+            borderColor: canUnlock ? 'oklch(0.72 0.21 145 / 0.3)' : 'var(--line)',
+            textAlign: 'left',
+          }}
+        >
+          <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
+            <div>
+              <div className="kicker">UNLOCK NEW SLOT</div>
+              <div className="display" style={{ fontSize: 14, letterSpacing: '-0.02em', marginTop: 2 }}>
+                Extend your roster
+              </div>
+            </div>
+            <div className="flex items-center" style={{ gap: 4 }}>
+              <Icon.Bolt size={14} style={{ color: 'var(--whistle)' }} />
+              <span
+                className="mono num"
+                style={{ fontSize: 13, fontWeight: 700, color: 'var(--whistle)' }}
+              >
+                {TEAM_SLOT_UNLOCK_COST} XP
+              </span>
+            </div>
+          </div>
+
+          <div
+            className="flex items-center justify-between"
+            style={{ marginBottom: 12 }}
+          >
+            <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.04em' }}>
+              Your XP
+            </span>
+            <span
+              className="mono num"
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: canUnlock ? 'var(--pitch)' : 'var(--ref-red)',
+              }}
+            >
+              {userXp.toLocaleString()} XP
+            </span>
+          </div>
+
+          {canUnlock ? (
+            <Button
+              onClick={onUnlockSlot}
+              style={{ width: '100%', justifyContent: 'center' }}
+            >
+              <Icon.Plus size={14} /> Unlock slot (+1 squad)
+            </Button>
+          ) : (
+            <div
+              className="mono"
+              style={{
+                padding: '10px 12px',
+                background: 'var(--surface)',
+                border: '1px dashed var(--line)',
+                borderRadius: 6,
+                textAlign: 'center',
+                fontSize: 11,
+                color: 'var(--text-mute)',
+                letterSpacing: '0.04em',
+              }}
+            >
+              NEED <span style={{ color: 'var(--ref-red)' }}>{xpShortage}</span> MORE XP TO UNLOCK
+            </div>
+          )}
+        </div>
+
+        <Button variant="ghost" onClick={onClose} style={{ width: '100%', justifyContent: 'center' }}>
+          Close
+        </Button>
+      </div>
+    </Modal>
   );
 };

@@ -1,0 +1,229 @@
+/* ============================================================
+   GAMEFI INVEST — STADIUM AESTHETIC (design tokens)
+   Theme-able via [data-theme]. Imported by globals.css.
+   ============================================================ */
+
+:root {
+  /* Type (font-family values are set via next/font in layout.tsx) */
+  --font-display: var(--font-space-grotesk), system-ui, sans-serif;
+  --font-body: var(--font-space-grotesk), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+
+  /* Brand — pitch / stadium palette */
+  --pitch: oklch(0.72 0.21 145);             /* primary turf green */
+  --pitch-deep: oklch(0.55 0.21 145);        /* deeper green */
+  --pitch-glow: oklch(0.82 0.21 145);        /* bright */
+  --ref-red: oklch(0.65 0.22 25);            /* losses / red card */
+  --whistle: oklch(0.83 0.18 90);            /* yellow card */
+  --sky: oklch(0.75 0.14 230);               /* info */
+  --floodlight: oklch(0.96 0.04 90);         /* cream chalk paper */
+  --ink: oklch(0.16 0.015 250);              /* near-black ink */
+
+  /* Sizing */
+  --rail-w: 84px;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --r-xl: 24px;
+
+  --shadow-card: 0 1px 0 rgba(0,0,0,0.04), 0 10px 30px -12px rgba(0,0,0,0.12);
+}
+
+/* ===== LIGHT ===== */
+[data-theme="light"],
+html.light {
+  --bg: oklch(0.97 0.015 90);                /* warm chalk */
+  --bg-2: oklch(0.94 0.02 90);
+  --surface: oklch(0.99 0.005 90);
+  --surface-2: oklch(0.96 0.015 90);
+  --line: oklch(0.88 0.02 90);
+  --line-2: oklch(0.82 0.02 90);
+  --text: oklch(0.18 0.02 250);
+  --text-dim: oklch(0.42 0.02 250);
+  --text-mute: oklch(0.6 0.02 250);
+  --chalk: oklch(0.18 0.02 250 / 0.12);
+  --pitch-tint: oklch(0.72 0.21 145 / 0.12);
+  --shadow-card: 0 1px 0 rgba(0,0,0,0.04), 0 10px 30px -12px rgba(0,0,0,0.12);
+}
+
+/* ===== DARK ===== */
+[data-theme="dark"],
+html.dark {
+  --bg: oklch(0.13 0.015 250);               /* deep ink */
+  --bg-2: oklch(0.16 0.018 250);
+  --surface: oklch(0.18 0.018 250);
+  --surface-2: oklch(0.22 0.02 250);
+  --line: oklch(0.28 0.02 250);
+  --line-2: oklch(0.36 0.02 250);
+  --text: oklch(0.97 0.01 90);
+  --text-dim: oklch(0.72 0.02 250);
+  --text-mute: oklch(0.55 0.02 250);
+  --chalk: oklch(0.97 0.01 90 / 0.15);
+  --pitch-tint: oklch(0.72 0.21 145 / 0.16);
+  --shadow-card: 0 1px 0 rgba(0,0,0,0.4), 0 18px 40px -20px rgba(0,0,0,0.6);
+}
+
+/* Stadium helpers (opt-in classes; do NOT override existing Tailwind output) */
+.stadium-root {
+  font-family: var(--font-body);
+  font-feature-settings: "ss01", "cv11";
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+.mono { font-family: var(--font-mono); font-feature-settings: "tnum", "zero"; }
+.num  { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+.display { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.04em; }
+.eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-dim); font-weight: 500; }
+.kicker  { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--text-mute); font-weight: 500; }
+
+.pos { color: var(--pitch); }
+.neg { color: var(--ref-red); }
+
+/* Chalk line — used as decorative divider */
+.chalk-line {
+  background-image: repeating-linear-gradient(90deg, var(--text) 0 6px, transparent 6px 12px);
+  height: 1px;
+  opacity: 0.25;
+}
+
+/* Card */
+.stadium-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+.card-flush {
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+/* Pitch background pattern */
+.pitch-bg {
+  background:
+    radial-gradient(ellipse at 50% 50%, oklch(0.72 0.21 145 / 0.0) 0%, oklch(0.72 0.21 145 / 0.0) 60%),
+    repeating-linear-gradient(
+      90deg,
+      oklch(0.55 0.21 145) 0 14.28%,
+      oklch(0.5  0.21 145) 14.28% 28.57%
+    );
+}
+
+/* Buttons (use .stadium-btn to avoid colliding with Tailwind .btn classes) */
+.stadium-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  padding: 10px 16px;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform .12s ease, background .15s ease, border-color .15s ease, color .15s ease;
+  white-space: nowrap;
+}
+.stadium-btn:active { transform: translateY(1px); }
+.stadium-btn-primary { background: var(--pitch); color: oklch(0.14 0.05 145); border-color: var(--pitch-deep); }
+.stadium-btn-primary:hover { background: var(--pitch-glow); }
+.stadium-btn-ghost   { background: transparent; color: var(--text); border-color: var(--line); }
+.stadium-btn-ghost:hover { background: var(--surface-2); border-color: var(--line-2); }
+.stadium-btn-ink     { background: var(--text); color: var(--bg); }
+
+/* Pill */
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  padding: 4px 8px; border-radius: 999px;
+  background: var(--surface-2); color: var(--text-dim);
+  border: 1px solid var(--line);
+}
+.pill-pitch { background: var(--pitch-tint); color: var(--pitch); border-color: oklch(0.72 0.21 145 / 0.3); }
+.pill-red   { background: oklch(0.65 0.22 25 / 0.14); color: var(--ref-red); border-color: oklch(0.65 0.22 25 / 0.3); }
+.pill-sky   { background: oklch(0.75 0.14 230 / 0.14); color: var(--sky); border-color: oklch(0.75 0.14 230 / 0.3); }
+.pill-whistle { background: oklch(0.83 0.18 90 / 0.16); color: oklch(0.55 0.18 80); border-color: oklch(0.83 0.18 90 / 0.4); }
+
+/* Stadium ticker */
+.ticker {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum","zero";
+  font-weight: 500;
+}
+
+/* Big numeric counter used in scoreboard */
+.scoreboard-num {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+  line-height: 0.92;
+}
+
+/* "LIVE" indicator */
+.live-dot {
+  display: inline-block;
+  width: 8px; height: 8px; border-radius: 999px; background: var(--ref-red);
+  box-shadow: 0 0 0 0 var(--ref-red);
+  animation: live-pulse 1.4s ease-out infinite;
+}
+@keyframes live-pulse {
+  0% { box-shadow: 0 0 0 0 oklch(0.65 0.22 25 / 0.6); }
+  100% { box-shadow: 0 0 0 8px oklch(0.65 0.22 25 / 0); }
+}
+
+/* Stadium focus rings — applied on .stadium-root scope to avoid hijacking the app */
+.stadium-root button:focus-visible,
+.stadium-root a:focus-visible {
+  outline: 2px solid var(--pitch);
+  outline-offset: 2px;
+}
+
+/* Loading spinner used by AppLayout */
+.stadium-spinner {
+  width: 56px;
+  height: 56px;
+  border: 3px solid var(--line);
+  border-top-color: var(--pitch);
+  border-radius: 50%;
+  animation: stadium-spin 0.9s linear infinite;
+}
+@keyframes stadium-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Pitch — soccer field component used inside Squad detail */
+.stadium-pitch {
+  position: relative;
+  aspect-ratio: 5 / 7;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(0,0,0,0.2);
+}
+.stadium-pitch-tactics {
+  border: 1px solid var(--line-2);
+}
+.stadium-pitch-stadium-bg {
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    oklch(0.42 0.16 145) 0 7.14%,
+    oklch(0.36 0.16 145) 7.14% 14.28%
+  );
+}
+.stadium-pitch-tactics-bg {
+  position: absolute; inset: 0;
+  background: var(--surface);
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.stadium-pitch-vignette {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.35) 100%);
+  pointer-events: none;
+}

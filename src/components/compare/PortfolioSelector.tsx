@@ -2,8 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { Portfolio, User } from '@/types';
-import { cn } from '@/lib/utils';
-import { useTheme } from '@/components/ThemeProvider';
+import { Icon } from '@/components/stadium/Icon';
 
 interface PortfolioSelectorProps {
   portfolios: Portfolio[];
@@ -24,10 +23,8 @@ export const PortfolioSelector: React.FC<PortfolioSelectorProps> = ({
   users,
   index,
 }) => {
-  const { resolvedTheme } = useTheme();
   const currentSelection = selectedPortfolioIds[index] || '';
 
-  // Filter out already selected portfolios (except current selection)
   const availablePortfolios = useMemo(() => {
     const otherSelections = selectedPortfolioIds.filter((_, i) => i !== index);
     return portfolios.filter((p) => !otherSelections.includes(p.id));
@@ -35,59 +32,81 @@ export const PortfolioSelector: React.FC<PortfolioSelectorProps> = ({
 
   const availablePublicPortfolios = useMemo(() => {
     const otherSelections = selectedPortfolioIds.filter((_, i) => i !== index);
-    // Filter out user's own portfolios and already selected ones
     return publicPortfolios.filter(
-      (p) => p.userId !== currentUserId && !otherSelections.includes(p.id)
+      (p) => p.userId !== currentUserId && !otherSelections.includes(p.id),
     );
   }, [publicPortfolios, currentUserId, selectedPortfolioIds, index]);
 
-  const getUsername = (userId: string): string => {
-    return users.get(userId)?.username || 'Unknown';
-  };
+  const getUsername = (userId: string): string => users.get(userId)?.username || 'Unknown';
 
   return (
-    <div className="relative">
+    <div style={{ position: 'relative' }}>
+      <label
+        className="kicker"
+        style={{ display: 'block', marginBottom: 6, color: 'var(--text-dim)' }}
+      >
+        SLOT {String(index + 1).padStart(2, '0')}
+      </label>
       <select
         value={currentSelection}
         onChange={(e) => onSelect(e.target.value)}
-        className={cn(
-          'w-full px-4 py-3 rounded-xl border',
-          'focus:outline-none focus:border-emerald-500 transition-colors',
-          'appearance-none cursor-pointer',
-          resolvedTheme === 'dark'
-            ? 'bg-slate-800 border-slate-700 text-white'
-            : 'bg-white border-slate-200 text-slate-900 shadow-sm',
-          !currentSelection && (resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')
-        )}
+        style={{
+          width: '100%',
+          padding: '10px 36px 10px 14px',
+          background: 'var(--surface-2)',
+          border: '1px solid var(--line)',
+          borderRadius: 8,
+          color: currentSelection ? 'var(--text)' : 'var(--text-mute)',
+          fontFamily: 'var(--font-body)',
+          fontSize: 13,
+          cursor: 'pointer',
+          outline: 'none',
+          appearance: 'none',
+          transition: 'border-color .15s, background .15s',
+        }}
+        onFocus={(e) => {
+          e.currentTarget.style.borderColor = 'var(--pitch)';
+          e.currentTarget.style.background = 'var(--surface)';
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.borderColor = 'var(--line)';
+          e.currentTarget.style.background = 'var(--surface-2)';
+        }}
       >
-        <option value="">Select Portfolio {index + 1}</option>
+        <option value="">Pick a squad…</option>
 
         {availablePortfolios.length > 0 && (
-          <optgroup label="My Portfolios">
-            {availablePortfolios.map((portfolio) => (
-              <option key={portfolio.id} value={portfolio.id}>
-                {portfolio.name} ({portfolio.formation})
+          <optgroup label="My Squads">
+            {availablePortfolios.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} ({p.formation})
               </option>
             ))}
           </optgroup>
         )}
 
         {availablePublicPortfolios.length > 0 && (
-          <optgroup label="Public Portfolios">
-            {availablePublicPortfolios.map((portfolio) => (
-              <option key={portfolio.id} value={portfolio.id}>
-                {portfolio.name} by @{getUsername(portfolio.userId)} ({portfolio.formation})
+          <optgroup label="Public Squads">
+            {availablePublicPortfolios.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} · @{getUsername(p.userId)} ({p.formation})
               </option>
             ))}
           </optgroup>
         )}
       </select>
 
-      {/* Custom dropdown arrow */}
-      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-        <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
+      <div
+        style={{
+          position: 'absolute',
+          right: 12,
+          top: 'calc(50% + 6px)',
+          transform: 'translateY(-50%)',
+          pointerEvents: 'none',
+          color: 'var(--text-mute)',
+        }}
+      >
+        <Icon.Chevron size={14} style={{ transform: 'rotate(90deg)' }} />
       </div>
     </div>
   );

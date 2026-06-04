@@ -24,7 +24,6 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Error caught by boundary:', error, errorInfo);
-    // Here you could send to an error reporting service
   }
 
   handleReset = () => {
@@ -34,41 +33,108 @@ export class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
-      if (this.props.fallback) {
-        return this.props.fallback;
-      }
+      if (this.props.fallback) return this.props.fallback;
 
       return (
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-          <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center">
-            <div className="w-16 h-16 mx-auto mb-6 bg-red-500/20 rounded-full flex items-center justify-center">
-              <svg className="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        <div
+          className="stadium-root"
+          data-theme="dark"
+          style={{
+            minHeight: '100vh',
+            background: 'var(--bg)',
+            color: 'var(--text)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div
+            className="stadium-card"
+            style={{
+              maxWidth: 440,
+              width: '100%',
+              padding: 28,
+              textAlign: 'center',
+            }}
+          >
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                margin: '0 auto 14px',
+                borderRadius: 10,
+                background: 'oklch(0.65 0.22 25 / 0.08)',
+                border: '1px solid oklch(0.65 0.22 25 / 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--ref-red)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            <h2 className="text-xl font-bold text-white mb-2">Something went wrong</h2>
-            <p className="text-slate-400 mb-6">
-              We encountered an unexpected error. Please try refreshing the page.
+            <div className="kicker" style={{ color: 'var(--ref-red)' }}>OFFSIDE · UNEXPECTED ERROR</div>
+            <h2
+              className="display"
+              style={{
+                fontSize: 20,
+                letterSpacing: '-0.03em',
+                margin: '6px 0 6px',
+              }}
+            >
+              Something went wrong
+            </h2>
+            <p
+              style={{
+                color: 'var(--text-dim)',
+                fontSize: 13,
+                lineHeight: 1.55,
+                margin: '0 0 18px',
+              }}
+            >
+              We hit an unexpected error. Refresh to get back on the pitch.
             </p>
+
             {process.env.NODE_ENV === 'development' && this.state.error && (
-              <pre className="text-left bg-slate-800 rounded-lg p-4 mb-6 text-xs text-red-400 overflow-auto max-h-40">
+              <pre
+                className="mono"
+                style={{
+                  textAlign: 'left',
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--line)',
+                  borderRadius: 8,
+                  padding: 12,
+                  margin: '0 0 18px',
+                  fontSize: 10,
+                  color: 'var(--ref-red)',
+                  maxHeight: 160,
+                  overflow: 'auto',
+                  letterSpacing: '0.02em',
+                  lineHeight: 1.4,
+                }}
+              >
                 {this.state.error.message}
                 {'\n'}
                 {this.state.error.stack}
               </pre>
             )}
-            <div className="flex gap-3 justify-center">
+
+            <div className="flex" style={{ gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
               <button
+                type="button"
                 onClick={this.handleReset}
-                className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition-colors"
+                className="stadium-btn stadium-btn-primary"
               >
-                Refresh Page
+                Refresh page
               </button>
               <button
+                type="button"
                 onClick={() => window.history.back()}
-                className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg transition-colors"
+                className="stadium-btn stadium-btn-ghost"
               >
-                Go Back
+                Go back
               </button>
             </div>
           </div>

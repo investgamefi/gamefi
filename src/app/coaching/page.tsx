@@ -4,12 +4,10 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AppLayout } from '@/components';
-import { COACHING_MODULES, DIFFICULTY_COLORS, CoachingModule, CoachingLesson } from '@/data/coaching-content';
-import { cn } from '@/lib/utils';
-import { useTheme } from '@/components/ThemeProvider';
+import { COACHING_MODULES, CoachingModule, CoachingLesson } from '@/data/coaching-content';
+import { Icon } from '@/components/stadium/Icon';
 
 export default function CoachingArenaPage() {
-  const { resolvedTheme } = useTheme();
   const [selectedModule, setSelectedModule] = useState<CoachingModule | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<CoachingLesson | null>(null);
   const [quizAnswers, setQuizAnswers] = useState<Record<string, number>>({});
@@ -40,14 +38,34 @@ export default function CoachingArenaPage() {
     return content.split('\n').map((line, index) => {
       if (line.startsWith('## ')) {
         return (
-          <h2 key={index} className="text-xl font-bold text-white mt-6 mb-4 first:mt-0">
+          <h2
+            key={index}
+            className="display"
+            style={{
+              fontSize: 18,
+              letterSpacing: '-0.03em',
+              color: 'var(--text)',
+              marginTop: 22,
+              marginBottom: 12,
+            }}
+          >
             {line.replace('## ', '')}
           </h2>
         );
       }
       if (line.startsWith('### ')) {
         return (
-          <h3 key={index} className="text-lg font-semibold text-white mt-4 mb-2">
+          <h3
+            key={index}
+            className="display"
+            style={{
+              fontSize: 15,
+              letterSpacing: '-0.02em',
+              color: 'var(--text)',
+              marginTop: 14,
+              marginBottom: 8,
+            }}
+          >
             {line.replace('### ', '')}
           </h3>
         );
@@ -56,11 +74,13 @@ export default function CoachingArenaPage() {
         const match = line.match(/- \*\*(.+?)\*\*: (.+)/);
         if (match) {
           return (
-            <div key={index} className="flex items-start gap-2 mb-2 ml-4">
-              <span className="text-emerald-400 mt-1">&#8226;</span>
-              <span>
-                <strong className="text-white">{match[1]}</strong>:{' '}
-                <span className="text-slate-400">{match[2]}</span>
+            <div key={index} className="flex items-start" style={{ gap: 8, marginBottom: 8 }}>
+              <span style={{ color: 'var(--pitch)', marginTop: 4 }}>▸</span>
+              <span style={{ fontSize: 13, lineHeight: 1.55 }}>
+                <strong style={{ color: 'var(--text)', fontFamily: 'var(--font-display)' }}>
+                  {match[1]}
+                </strong>
+                <span style={{ color: 'var(--text-dim)' }}>: {match[2]}</span>
               </span>
             </div>
           );
@@ -68,31 +88,37 @@ export default function CoachingArenaPage() {
       }
       if (line.startsWith('- ')) {
         return (
-          <div key={index} className="flex items-start gap-2 mb-2 ml-4">
-            <span className="text-emerald-400 mt-1">&#8226;</span>
-            <span className="text-slate-400">{line.replace('- ', '')}</span>
+          <div key={index} className="flex items-start" style={{ gap: 8, marginBottom: 6 }}>
+            <span style={{ color: 'var(--pitch)', marginTop: 4 }}>▸</span>
+            <span style={{ color: 'var(--text-dim)', fontSize: 13, lineHeight: 1.55 }}>
+              {line.replace('- ', '')}
+            </span>
           </div>
         );
       }
       if (line.startsWith('| ')) {
         const cells = line.split('|').filter((cell) => cell.trim());
-        const isHeader = index > 0 && content.split('\n')[index - 1]?.includes('|');
-        const isHeaderRow = cells.every((cell) => !cell.includes('-'));
-
         if (line.includes('---')) return null;
 
         return (
-          <div key={index} className="flex gap-0 text-sm mb-1">
+          <div key={index} className="flex" style={{ gap: 0, marginBottom: 1 }}>
             {cells.map((cell, cellIndex) => (
               <div
                 key={cellIndex}
-                className={cn(
-                  'flex-1 px-3 py-2',
-                  cellIndex === 0 && 'bg-slate-800/80 rounded-l-lg',
-                  cellIndex === cells.length - 1 && 'rounded-r-lg',
-                  cellIndex > 0 && 'bg-slate-800/50',
-                  'text-slate-300 border-b border-slate-700/50'
-                )}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  background: cellIndex === 0 ? 'var(--surface-2)' : 'var(--surface)',
+                  borderTopLeftRadius: cellIndex === 0 ? 4 : 0,
+                  borderBottomLeftRadius: cellIndex === 0 ? 4 : 0,
+                  borderTopRightRadius: cellIndex === cells.length - 1 ? 4 : 0,
+                  borderBottomRightRadius: cellIndex === cells.length - 1 ? 4 : 0,
+                  borderBottom: '1px solid var(--line)',
+                  color: 'var(--text)',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: 12,
+                  fontWeight: cellIndex === 0 ? 600 : 400,
+                }}
               >
                 {cell.trim()}
               </div>
@@ -100,34 +126,54 @@ export default function CoachingArenaPage() {
           </div>
         );
       }
-      if (line.trim() === '') return <div key={index} className="h-2" />;
+      if (line.trim() === '') return <div key={index} style={{ height: 8 }} />;
       return (
-        <p key={index} className="text-slate-400 mb-2">
+        <p
+          key={index}
+          style={{
+            color: 'var(--text-dim)',
+            marginBottom: 8,
+            fontSize: 13,
+            lineHeight: 1.6,
+          }}
+        >
           {line}
         </p>
       );
     });
   };
 
+  const totalLessons = COACHING_MODULES.reduce((acc, m) => acc + m.lessons.length, 0);
+
   return (
-    <AppLayout>
-        {/* Hero Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-12"
-        >
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full mb-4">
-            <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-            </svg>
-            <span className="text-emerald-400 font-medium">Coaching Arena</span>
+    <AppLayout flush>
+      <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {/* Page header — only shown on the module list view */}
+        {!selectedModule && (
+          <div className="flex flex-wrap items-end justify-between" style={{ gap: 14 }}>
+            <div>
+              <div className="kicker">YOUR LICENSE · TRAINING GROUND</div>
+              <h1
+                className="display"
+                style={{ fontSize: 'clamp(24px, 3vw, 32px)', letterSpacing: '-0.04em', margin: '2px 0 0' }}
+              >
+                Training
+              </h1>
+              <div className="mono" style={{ fontSize: 12, color: 'var(--text-mute)', marginTop: 6 }}>
+                {COACHING_MODULES.length} modules · {totalLessons} drills · Pass enough to unlock your coaching license.
+              </div>
+            </div>
+            <div className="stadium-card flex items-center" style={{ padding: '10px 14px', gap: 14 }}>
+              <Icon.Coach size={20} style={{ color: 'var(--pitch)' }} />
+              <div>
+                <div className="kicker">LICENSE PROGRESS</div>
+                <div className="mono num" style={{ fontSize: 13, fontWeight: 700, marginTop: 2 }}>
+                  0 / {totalLessons} DRILLS
+                </div>
+              </div>
+            </div>
           </div>
-          <h1 className={cn('text-4xl font-bold mb-4', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>Master the Stock Market</h1>
-          <p className={cn('text-xl max-w-2xl mx-auto', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>
-            Learn the fundamentals of investing through interactive lessons. Understand stocks, risk types, and build your investment knowledge.
-          </p>
-        </motion.div>
+        )}
 
         <AnimatePresence mode="wait">
           {/* Module Selection View */}
@@ -137,88 +183,312 @@ export default function CoachingArenaPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
             >
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {COACHING_MODULES.map((module, index) => (
-                  <motion.div
-                    key={module.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    onClick={() => setSelectedModule(module)}
-                    className={cn(
-                      'rounded-2xl p-6 cursor-pointer transition-all duration-300 group border',
-                      resolvedTheme === 'dark'
-                        ? 'bg-slate-900/50 border-slate-800 hover:border-emerald-500/30'
-                        : 'bg-white border-slate-200 hover:border-emerald-500/30 shadow-sm'
-                    )}
+              {/* Featured drill — the design's signature 2-column card */}
+              {COACHING_MODULES.length > 0 && (() => {
+                const featured = COACHING_MODULES[0];
+                const featuredLessons = featured.lessons.length;
+                return (
+                  <div
+                    className="stadium-card"
+                    onClick={() => setSelectedModule(featured)}
+                    style={{
+                      padding: 0,
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)',
+                      overflow: 'hidden',
+                      cursor: 'pointer',
+                      minHeight: 200,
+                      transition: 'border-color .15s ease',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--pitch)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--line)'; }}
                   >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="w-12 h-12 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-xl flex items-center justify-center group-hover:from-emerald-500/30 group-hover:to-teal-500/30 transition-all">
-                        <svg className="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={module.icon} />
-                        </svg>
+                    <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div className="kicker">UP NEXT · DRILL 01</div>
+                      <div
+                        className="display"
+                        style={{ fontSize: 22, letterSpacing: '-0.03em', lineHeight: 1.2 }}
+                      >
+                        {featured.title}
                       </div>
-                      <span
-                        className={cn(
-                          'px-2 py-1 rounded-full text-xs font-medium capitalize',
-                          DIFFICULTY_COLORS[module.difficulty].bg,
-                          DIFFICULTY_COLORS[module.difficulty].text,
-                          DIFFICULTY_COLORS[module.difficulty].border,
-                          'border'
-                        )}
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: 'var(--text-dim)',
+                          lineHeight: 1.55,
+                          maxWidth: 480,
+                        }}
                       >
-                        {module.difficulty}
-                      </span>
+                        {featured.description}
+                      </div>
+                      <div className="flex items-center" style={{ gap: 14, marginTop: 8 }}>
+                        <button
+                          type="button"
+                          className="stadium-btn stadium-btn-primary"
+                          onClick={(e) => { e.stopPropagation(); setSelectedModule(featured); }}
+                        >
+                          <Icon.Bolt size={14} /> Start drill · {featuredLessons} lesson{featuredLessons === 1 ? '' : 's'}
+                        </button>
+                        <div className="kicker" style={{ color: 'var(--whistle)' }}>
+                          +{featuredLessons * 100} XP
+                        </div>
+                      </div>
                     </div>
+                    {/* Mini tactics illustration — chalk grid with dot players */}
+                    <div
+                      style={{
+                        position: 'relative',
+                        background: 'var(--ink)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minHeight: 200,
+                      }}
+                    >
+                      <div style={{ position: 'absolute', inset: 16 }}>
+                        <div
+                          style={{
+                            height: '100%',
+                            borderRadius: 6,
+                            position: 'relative',
+                            overflow: 'hidden',
+                            background:
+                              'repeating-linear-gradient(90deg, oklch(0.42 0.16 145) 0 7.14%, oklch(0.36 0.16 145) 7.14% 14.28%)',
+                          }}
+                        >
+                          {/* chalk lines */}
+                          <svg
+                            viewBox="0 0 100 140"
+                            preserveAspectRatio="none"
+                            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+                          >
+                            <rect x="4" y="4" width="92" height="132" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" />
+                            <line x1="4" y1="70" x2="96" y2="70" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" />
+                            <circle cx="50" cy="70" r="10" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" />
+                            <rect x="22" y="4" width="56" height="18" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" />
+                            <rect x="22" y="118" width="56" height="18" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" />
+                          </svg>
+                          {/* yellow chalkboard markers */}
+                          {[
+                            [50, 84],
+                            [20, 68],
+                            [40, 72],
+                            [60, 72],
+                            [80, 68],
+                            [30, 48],
+                            [70, 48],
+                            [50, 52],
+                            [20, 24],
+                            [80, 24],
+                            [50, 18],
+                          ].map(([x, y], i) => (
+                            <div
+                              key={i}
+                              style={{
+                                position: 'absolute',
+                                left: `${x}%`,
+                                top: `${y}%`,
+                                transform: 'translate(-50%, -50%)',
+                                width: 12,
+                                height: 12,
+                                background: 'var(--whistle)',
+                                borderRadius: 3,
+                                border: '1px solid #fff',
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
-                    <h3 className={cn('text-lg font-semibold mb-2 group-hover:text-emerald-400 transition-colors', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>
-                      {module.title}
-                    </h3>
-                    <p className={cn('text-sm mb-4', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>{module.description}</p>
+              {/* All drills section header */}
+              <div
+                className="flex items-end justify-between"
+                style={{ marginBottom: -4 }}
+              >
+                <div>
+                  <div className="display" style={{ fontSize: 18, letterSpacing: '-0.03em' }}>
+                    All Drills
+                  </div>
+                  <div className="mono" style={{ fontSize: 11, color: 'var(--text-mute)', marginTop: 2 }}>
+                    Coaching curriculum · Season 1
+                  </div>
+                </div>
+              </div>
 
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500 text-sm">{module.lessons.length} lessons</span>
-                      <svg
-                        className="w-5 h-5 text-slate-500 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                  gap: 14,
+                }}
+              >
+                {COACHING_MODULES.map((module, index) => {
+                  const diff = module.difficulty;
+                  const pill =
+                    diff === 'beginner'
+                      ? 'pill-sky'
+                      : diff === 'intermediate'
+                      ? 'pill-whistle'
+                      : 'pill-red';
+                  // Progress is 0 by default — coaching content doesn't yet track completion in store
+                  const progressPct = 0;
+                  const status: 'locked' | 'in-progress' | 'done' =
+                    progressPct === 0 ? 'locked' : progressPct === 100 ? 'done' : 'in-progress';
+                  return (
+                    <div
+                      key={module.id}
+                      onClick={() => setSelectedModule(module)}
+                      className="stadium-card"
+                      style={{
+                        padding: 16,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 12,
+                        cursor: 'pointer',
+                        transition: 'border-color .15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--pitch)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--line)';
+                      }}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="kicker">DRILL · {String(index + 1).padStart(2, '0')}</div>
+                        <span className={'pill ' + pill}>{diff}</span>
+                      </div>
+                      <div
+                        className="display"
+                        style={{ fontSize: 16, letterSpacing: '-0.02em', lineHeight: 1.3 }}
                       >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
+                        {module.title}
+                      </div>
+                      <div
+                        style={{
+                          color: 'var(--text-dim)',
+                          fontSize: 12,
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {module.description}
+                      </div>
+                      {/* Progress bar — the design's signature drill-card footer */}
+                      <div
+                        style={{
+                          height: 4,
+                          background: 'var(--surface-2)',
+                          borderRadius: 2,
+                          overflow: 'hidden',
+                          marginTop: 4,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: `${progressPct}%`,
+                            height: '100%',
+                            background:
+                              status === 'done'
+                                ? 'var(--pitch)'
+                                : status === 'in-progress'
+                                ? 'var(--whistle)'
+                                : 'transparent',
+                            transition: 'width .3s ease',
+                          }}
+                        />
+                      </div>
+                      <div
+                        className="flex items-center justify-between"
+                        style={{
+                          paddingTop: 10,
+                          borderTop: '1px solid var(--line)',
+                          marginTop: 'auto',
+                        }}
+                      >
+                        <div className="mono" style={{ fontSize: 10, color: 'var(--text-mute)', letterSpacing: '0.1em' }}>
+                          {module.lessons.length} LESSONS
+                        </div>
+                        <Icon.Arrow size={14} style={{ color: 'var(--pitch)' }} />
+                      </div>
                     </div>
-                  </motion.div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Progress Overview */}
               <motion.div
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4 }}
-                className="mt-12"
+                className="stadium-card"
+                style={{
+                  marginTop: 12,
+                  padding: '24px 28px',
+                  background: 'var(--pitch-tint)',
+                  borderColor: 'oklch(0.72 0.21 145 / 0.3)',
+                }}
               >
-                <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 rounded-2xl p-8">
-                  <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                    <div>
-                      <h3 className={cn('text-2xl font-bold mb-2', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>Ready to Start Learning?</h3>
-                      <p className={cn(resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>
-                        Begin with Stock Market Basics if you're new, or jump to any module that interests you.
-                      </p>
+                <div
+                  className="flex flex-wrap items-center justify-between"
+                  style={{ gap: 18 }}
+                >
+                  <div style={{ minWidth: 240, flex: 1 }}>
+                    <div className="kicker" style={{ color: 'var(--pitch)' }}>READY TO PASS</div>
+                    <div
+                      className="display"
+                      style={{
+                        fontSize: 'clamp(20px, 2.4vw, 26px)',
+                        letterSpacing: '-0.03em',
+                        margin: '4px 0 6px',
+                      }}
+                    >
+                      Start your coaching license
                     </div>
-                    <div className="flex items-center gap-4 text-sm">
-                      <div className="text-center">
-                        <div className="text-3xl font-bold text-emerald-400">{COACHING_MODULES.length}</div>
-                        <div className="text-slate-500">Modules</div>
+                    <div
+                      style={{
+                        color: 'var(--text-dim)',
+                        fontSize: 13,
+                        lineHeight: 1.55,
+                      }}
+                    >
+                      Begin with the first module if you&apos;re new, or jump to any drill that catches your eye.
+                    </div>
+                  </div>
+                  <div className="flex items-center" style={{ gap: 18 }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div
+                        className="display num"
+                        style={{
+                          fontSize: 36,
+                          color: 'var(--pitch)',
+                          letterSpacing: '-0.05em',
+                          lineHeight: 1,
+                        }}
+                      >
+                        {COACHING_MODULES.length}
                       </div>
-                      <div className={cn('w-px h-12', resolvedTheme === 'dark' ? 'bg-slate-700' : 'bg-slate-300')} />
-                      <div className="text-center">
-                        <div className="text-3xl font-bold text-teal-400">
-                          {COACHING_MODULES.reduce((acc, m) => acc + m.lessons.length, 0)}
-                        </div>
-                        <div className="text-slate-500">Lessons</div>
+                      <div className="kicker" style={{ marginTop: 4 }}>MODULES</div>
+                    </div>
+                    <div style={{ width: 1, height: 40, background: 'var(--line)' }} />
+                    <div style={{ textAlign: 'center' }}>
+                      <div
+                        className="display num"
+                        style={{
+                          fontSize: 36,
+                          color: 'var(--whistle)',
+                          letterSpacing: '-0.05em',
+                          lineHeight: 1,
+                        }}
+                      >
+                        {COACHING_MODULES.reduce((acc, m) => acc + m.lessons.length, 0)}
                       </div>
+                      <div className="kicker" style={{ marginTop: 4 }}>LESSONS</div>
                     </div>
                   </div>
                 </div>
@@ -230,84 +500,173 @@ export default function CoachingArenaPage() {
           {selectedModule && !selectedLesson && (
             <motion.div
               key="lessons"
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
+              exit={{ opacity: 0, y: -14 }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
             >
-              {/* Back Button */}
+              {/* Back link */}
               <button
+                type="button"
                 onClick={handleBackToModules}
-                className="flex items-center gap-2 text-slate-400 hover:text-white mb-6 transition-colors"
+                className="mono flex items-center"
+                style={{
+                  gap: 6,
+                  padding: 0,
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-dim)',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  width: 'fit-content',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--pitch)')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-dim)')}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Back to Modules
+                <Icon.Arrow size={12} style={{ transform: 'rotate(180deg)' }} /> BACK TO DRILLS
               </button>
 
-              {/* Module Header */}
-              <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 mb-6">
-                <div className="flex items-start gap-4">
-                  <div className="w-14 h-14 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-xl flex items-center justify-center">
-                    <svg className="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={selectedModule.icon} />
+              {/* Module header */}
+              <div className="stadium-card" style={{ padding: 20 }}>
+                <div className="flex items-start" style={{ gap: 14 }}>
+                  <div
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 8,
+                      background: 'var(--pitch-tint)',
+                      border: '1px solid oklch(0.72 0.21 145 / 0.3)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--pitch)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d={selectedModule.icon} />
                     </svg>
                   </div>
-                  <div>
-                    <div className="flex items-center gap-3 mb-1">
-                      <h2 className="text-2xl font-bold text-white">{selectedModule.title}</h2>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="kicker">DRILL · {selectedModule.difficulty.toUpperCase()}</div>
+                    <div className="flex items-center flex-wrap" style={{ gap: 8, marginTop: 4 }}>
+                      <div
+                        className="display"
+                        style={{ fontSize: 'clamp(20px, 2.4vw, 26px)', letterSpacing: '-0.03em' }}
+                      >
+                        {selectedModule.title}
+                      </div>
                       <span
-                        className={cn(
-                          'px-2 py-1 rounded-full text-xs font-medium capitalize',
-                          DIFFICULTY_COLORS[selectedModule.difficulty].bg,
-                          DIFFICULTY_COLORS[selectedModule.difficulty].text,
-                          DIFFICULTY_COLORS[selectedModule.difficulty].border,
-                          'border'
-                        )}
+                        className={
+                          'pill ' +
+                          (selectedModule.difficulty === 'beginner'
+                            ? 'pill-sky'
+                            : selectedModule.difficulty === 'intermediate'
+                            ? 'pill-whistle'
+                            : 'pill-red')
+                        }
                       >
                         {selectedModule.difficulty}
                       </span>
                     </div>
-                    <p className="text-slate-400">{selectedModule.description}</p>
+                    <p
+                      style={{
+                        color: 'var(--text-dim)',
+                        fontSize: 13,
+                        marginTop: 6,
+                        lineHeight: 1.55,
+                      }}
+                    >
+                      {selectedModule.description}
+                    </p>
                   </div>
                 </div>
               </div>
 
-              {/* Lessons List */}
-              <div className="space-y-4">
-                {selectedModule.lessons.map((lesson, index) => (
-                  <motion.div
-                    key={lesson.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    onClick={() => setSelectedLesson(lesson)}
-                    className="bg-slate-900/50 border border-slate-800 rounded-xl p-5 cursor-pointer hover:border-emerald-500/30 transition-all group"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 font-semibold group-hover:bg-emerald-500/20 group-hover:text-emerald-400 transition-all">
-                        {index + 1}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-white font-medium group-hover:text-emerald-400 transition-colors">
-                          {lesson.title}
-                        </h3>
-                        <p className="text-slate-500 text-sm">
-                          {lesson.keyPoints?.length || 0} key points
-                          {lesson.quiz && ` • ${lesson.quiz.length} quiz question${lesson.quiz.length > 1 ? 's' : ''}`}
-                        </p>
-                      </div>
-                      <svg
-                        className="w-5 h-5 text-slate-600 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
+              {/* Lessons list */}
+              <div>
+                <div className="flex items-baseline justify-between" style={{ marginBottom: 10 }}>
+                  <div>
+                    <div className="kicker">LESSONS IN THIS DRILL</div>
+                    <div className="display" style={{ fontSize: 16, letterSpacing: '-0.02em', marginTop: 2 }}>
+                      Curriculum
                     </div>
-                  </motion.div>
-                ))}
+                  </div>
+                  <div className="mono" style={{ fontSize: 10, color: 'var(--text-mute)', letterSpacing: '0.1em' }}>
+                    {selectedModule.lessons.length} LESSONS
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {selectedModule.lessons.map((lesson, index) => (
+                    <motion.button
+                      key={lesson.id}
+                      type="button"
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      onClick={() => setSelectedLesson(lesson)}
+                      className="stadium-card"
+                      style={{
+                        padding: '12px 16px',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        color: 'inherit',
+                        transition: 'border-color .15s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 14,
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--pitch)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--line)';
+                      }}
+                    >
+                      <div
+                        className="display num"
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: 6,
+                          background: 'var(--surface-2)',
+                          border: '1px solid var(--line)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 13,
+                          letterSpacing: '-0.02em',
+                          color: 'var(--text-dim)',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {String(index + 1).padStart(2, '0')}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                          className="display"
+                          style={{
+                            fontSize: 14,
+                            letterSpacing: '-0.01em',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {lesson.title}
+                        </div>
+                        <div className="mono" style={{ fontSize: 10, color: 'var(--text-mute)', marginTop: 2, letterSpacing: '0.04em' }}>
+                          {lesson.keyPoints?.length || 0} KEY POINTS
+                          {lesson.quiz && ` · ${lesson.quiz.length} QUIZ Q${lesson.quiz.length > 1 ? 'S' : ''}`}
+                        </div>
+                      </div>
+                      <Icon.Arrow size={14} style={{ color: 'var(--pitch)', flexShrink: 0 }} />
+                    </motion.button>
+                  ))}
+                </div>
               </div>
             </motion.div>
           )}
@@ -316,86 +675,206 @@ export default function CoachingArenaPage() {
           {selectedModule && selectedLesson && (
             <motion.div
               key="lesson-content"
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
+              exit={{ opacity: 0, y: -14 }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
             >
-              {/* Back Button */}
+              {/* Back link */}
               <button
+                type="button"
                 onClick={handleBackToLessons}
-                className="flex items-center gap-2 text-slate-400 hover:text-white mb-6 transition-colors"
+                className="mono flex items-center"
+                style={{
+                  gap: 6,
+                  padding: 0,
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-dim)',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  width: 'fit-content',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--pitch)')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-dim)')}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Back to {selectedModule.title}
+                <Icon.Arrow size={12} style={{ transform: 'rotate(180deg)' }} /> BACK TO {selectedModule.title.toUpperCase()}
               </button>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Main Content */}
-                <div className="lg:col-span-2 space-y-6">
-                  <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-8">
-                    <h1 className="text-2xl font-bold text-white mb-6">{selectedLesson.title}</h1>
-                    <div className="prose prose-invert prose-slate max-w-none">
-                      {renderContent(selectedLesson.content)}
-                    </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)',
+                  gap: 16,
+                  alignItems: 'start',
+                }}
+              >
+                {/* Main content column */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {/* Lesson body */}
+                  <div className="stadium-card" style={{ padding: 24 }}>
+                    <div className="kicker">LESSON</div>
+                    <h1
+                      className="display"
+                      style={{
+                        fontSize: 'clamp(20px, 2.4vw, 26px)',
+                        letterSpacing: '-0.03em',
+                        margin: '4px 0 18px',
+                      }}
+                    >
+                      {selectedLesson.title}
+                    </h1>
+                    <div>{renderContent(selectedLesson.content)}</div>
                   </div>
 
-                  {/* Quiz Section */}
+                  {/* Quiz */}
                   {selectedLesson.quiz && selectedLesson.quiz.length > 0 && (
-                    <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-8">
-                      <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                        <svg className="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        Test Your Knowledge
-                      </h2>
+                    <div className="stadium-card" style={{ padding: 24 }}>
+                      <div className="flex items-center" style={{ gap: 10, marginBottom: 18 }}>
+                        <div
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 6,
+                            background: 'var(--pitch-tint)',
+                            border: '1px solid oklch(0.72 0.21 145 / 0.3)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Icon.Target size={16} style={{ color: 'var(--pitch)' }} />
+                        </div>
+                        <div>
+                          <div className="kicker">QUIZ · {selectedLesson.quiz.length} QUESTION{selectedLesson.quiz.length > 1 ? 'S' : ''}</div>
+                          <div className="display" style={{ fontSize: 16, letterSpacing: '-0.02em', marginTop: 1 }}>
+                            Test your knowledge
+                          </div>
+                        </div>
+                      </div>
 
                       {selectedLesson.quiz.map((question, qIndex) => (
-                        <div key={qIndex} className="mb-6 last:mb-0">
-                          <p className="text-white font-medium mb-4">{question.question}</p>
-                          <div className="space-y-2 mb-4">
+                        <div
+                          key={qIndex}
+                          style={{
+                            marginBottom: qIndex === selectedLesson.quiz!.length - 1 ? 0 : 22,
+                            paddingBottom: qIndex === selectedLesson.quiz!.length - 1 ? 0 : 22,
+                            borderBottom: qIndex === selectedLesson.quiz!.length - 1 ? 'none' : '1px solid var(--line)',
+                          }}
+                        >
+                          <div className="kicker" style={{ marginBottom: 6 }}>QUESTION {qIndex + 1}</div>
+                          <p
+                            className="display"
+                            style={{
+                              fontSize: 15,
+                              letterSpacing: '-0.01em',
+                              margin: '0 0 14px',
+                              lineHeight: 1.4,
+                            }}
+                          >
+                            {question.question}
+                          </p>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
                             {question.options.map((option, oIndex) => {
                               const isSelected = quizAnswers[qIndex] === oIndex;
                               const showResult = showQuizResults[qIndex];
                               const isCorrect = oIndex === question.correctIndex;
 
+                              let bg = 'var(--surface-2)';
+                              let border = 'var(--line)';
+                              let opacity = 1;
+                              let dotBg = 'transparent';
+                              let dotBorder = 'var(--line-2)';
+                              let dotIcon: 'check' | 'close' | null = null;
+                              let textColor = 'var(--text)';
+
+                              if (!showResult && isSelected) {
+                                bg = 'var(--pitch-tint)';
+                                border = 'var(--pitch)';
+                                dotBg = 'var(--pitch)';
+                                dotBorder = 'var(--pitch-deep)';
+                              } else if (showResult && isCorrect) {
+                                bg = 'var(--pitch-tint)';
+                                border = 'oklch(0.72 0.21 145 / 0.4)';
+                                dotBg = 'var(--pitch)';
+                                dotBorder = 'var(--pitch-deep)';
+                                dotIcon = 'check';
+                                textColor = 'var(--pitch)';
+                              } else if (showResult && isSelected && !isCorrect) {
+                                bg = 'oklch(0.65 0.22 25 / 0.08)';
+                                border = 'oklch(0.65 0.22 25 / 0.4)';
+                                dotBg = 'var(--ref-red)';
+                                dotBorder = 'var(--ref-red)';
+                                dotIcon = 'close';
+                                textColor = 'var(--ref-red)';
+                              } else if (showResult && !isCorrect) {
+                                opacity = 0.5;
+                              }
+
                               return (
                                 <button
                                   key={oIndex}
+                                  type="button"
                                   onClick={() => !showResult && handleQuizAnswer(qIndex, oIndex)}
                                   disabled={showResult}
-                                  className={cn(
-                                    'w-full text-left px-4 py-3 rounded-xl border transition-all',
-                                    !showResult && isSelected && 'border-emerald-500 bg-emerald-500/10',
-                                    !showResult && !isSelected && 'border-slate-700 bg-slate-800/50 hover:border-slate-600',
-                                    showResult && isCorrect && 'border-green-500 bg-green-500/10',
-                                    showResult && isSelected && !isCorrect && 'border-red-500 bg-red-500/10',
-                                    showResult && !isSelected && !isCorrect && 'border-slate-700 bg-slate-800/30 opacity-50'
-                                  )}
+                                  style={{
+                                    width: '100%',
+                                    textAlign: 'left',
+                                    padding: '12px 14px',
+                                    background: bg,
+                                    border: '1px solid ' + border,
+                                    borderRadius: 8,
+                                    opacity,
+                                    cursor: showResult ? 'default' : 'pointer',
+                                    transition: 'background .12s, border-color .12s',
+                                    color: 'inherit',
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (!showResult && !isSelected) {
+                                      e.currentTarget.style.borderColor = 'var(--line-2)';
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (!showResult && !isSelected) {
+                                      e.currentTarget.style.borderColor = 'var(--line)';
+                                    }
+                                  }}
                                 >
-                                  <div className="flex items-center gap-3">
+                                  <div className="flex items-center" style={{ gap: 12 }}>
                                     <div
-                                      className={cn(
-                                        'w-6 h-6 rounded-full border-2 flex items-center justify-center',
-                                        !showResult && isSelected && 'border-emerald-500 bg-emerald-500',
-                                        !showResult && !isSelected && 'border-slate-600',
-                                        showResult && isCorrect && 'border-green-500 bg-green-500',
-                                        showResult && isSelected && !isCorrect && 'border-red-500 bg-red-500'
-                                      )}
+                                      style={{
+                                        width: 22,
+                                        height: 22,
+                                        borderRadius: '50%',
+                                        background: dotBg,
+                                        border: '2px solid ' + dotBorder,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        flexShrink: 0,
+                                      }}
                                     >
-                                      {showResult && isCorrect && (
-                                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                      {dotIcon === 'check' && (
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="oklch(0.14 0.05 145)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                          <path d="M5 13l4 4L19 7" />
                                         </svg>
                                       )}
-                                      {showResult && isSelected && !isCorrect && (
-                                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                      {dotIcon === 'close' && (
+                                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                          <path d="M6 6 L18 18 M18 6 L6 18" />
                                         </svg>
                                       )}
                                     </div>
-                                    <span className={cn('text-slate-300', showResult && isCorrect && 'text-green-400')}>
+                                    <span
+                                      style={{
+                                        color: textColor,
+                                        fontSize: 13,
+                                        lineHeight: 1.45,
+                                      }}
+                                    >
                                       {option}
                                     </span>
                                   </div>
@@ -406,91 +885,179 @@ export default function CoachingArenaPage() {
 
                           {!showQuizResults[qIndex] && quizAnswers[qIndex] !== undefined && (
                             <button
+                              type="button"
                               onClick={() => handleCheckAnswer(qIndex)}
-                              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition-colors"
+                              className="stadium-btn stadium-btn-primary"
+                              style={{ padding: '8px 16px', fontSize: 12 }}
                             >
-                              Check Answer
+                              <Icon.Whistle size={12} /> Check answer
                             </button>
                           )}
 
-                          {showQuizResults[qIndex] && (
-                            <motion.div
-                              initial={{ opacity: 0, y: 10 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              className={cn(
-                                'p-4 rounded-xl border',
-                                quizAnswers[qIndex] === question.correctIndex
-                                  ? 'bg-green-500/10 border-green-500/30'
-                                  : 'bg-amber-500/10 border-amber-500/30'
-                              )}
-                            >
-                              <p
-                                className={cn(
-                                  'font-medium mb-1',
-                                  quizAnswers[qIndex] === question.correctIndex ? 'text-green-400' : 'text-amber-400'
-                                )}
+                          {showQuizResults[qIndex] && (() => {
+                            const correct = quizAnswers[qIndex] === question.correctIndex;
+                            return (
+                              <motion.div
+                                initial={{ opacity: 0, y: 6 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="stadium-card"
+                                style={{
+                                  padding: 14,
+                                  background: correct
+                                    ? 'var(--pitch-tint)'
+                                    : 'oklch(0.83 0.18 90 / 0.1)',
+                                  borderColor: correct
+                                    ? 'oklch(0.72 0.21 145 / 0.3)'
+                                    : 'oklch(0.83 0.18 90 / 0.4)',
+                                }}
                               >
-                                {quizAnswers[qIndex] === question.correctIndex ? 'Correct!' : 'Not quite!'}
-                              </p>
-                              <p className="text-slate-400 text-sm">{question.explanation}</p>
-                            </motion.div>
-                          )}
+                                <div
+                                  className="display"
+                                  style={{
+                                    fontSize: 13,
+                                    letterSpacing: '-0.01em',
+                                    color: correct ? 'var(--pitch)' : 'var(--whistle)',
+                                    marginBottom: 4,
+                                  }}
+                                >
+                                  {correct ? '✓ Correct!' : '⚠ Not quite'}
+                                </div>
+                                <p style={{ color: 'var(--text-dim)', fontSize: 12, margin: 0, lineHeight: 1.55 }}>
+                                  {question.explanation}
+                                </p>
+                              </motion.div>
+                            );
+                          })()}
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
 
-                {/* Sidebar - Key Points */}
-                <div className="space-y-6">
-                  {selectedLesson.keyPoints && (
-                    <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 sticky top-24">
-                      <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                        <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                        </svg>
-                        Key Takeaways
-                      </h3>
-                      <div className="space-y-3">
+                {/* Side rail */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16, position: 'sticky', top: 80 }}>
+                  {/* Key takeaways */}
+                  {selectedLesson.keyPoints && selectedLesson.keyPoints.length > 0 && (
+                    <div
+                      className="stadium-card"
+                      style={{
+                        padding: 18,
+                        background: 'var(--pitch-tint)',
+                        borderColor: 'oklch(0.72 0.21 145 / 0.3)',
+                      }}
+                    >
+                      <div className="flex items-center" style={{ gap: 8, marginBottom: 12 }}>
+                        <Icon.Whistle size={14} style={{ color: 'var(--pitch)' }} />
+                        <div className="kicker" style={{ color: 'var(--pitch)' }}>
+                          COACH&apos;S TAKEAWAYS
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {selectedLesson.keyPoints.map((point, index) => (
-                          <div key={index} className="flex items-start gap-3">
-                            <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                              <svg className="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
+                          <div key={index} className="flex items-start" style={{ gap: 8 }}>
+                            <div
+                              style={{
+                                width: 18,
+                                height: 18,
+                                borderRadius: 4,
+                                background: 'var(--pitch)',
+                                color: 'oklch(0.14 0.05 145)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                                fontFamily: 'var(--font-mono)',
+                                fontSize: 9,
+                                fontWeight: 700,
+                                marginTop: 1,
+                              }}
+                            >
+                              {String(index + 1).padStart(2, '0')}
                             </div>
-                            <span className="text-slate-400 text-sm">{point}</span>
+                            <span style={{ color: 'var(--text)', fontSize: 12, lineHeight: 1.5 }}>
+                              {point}
+                            </span>
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {/* Navigation Between Lessons */}
-                  <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
-                    <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">In This Module</h3>
-                    <div className="space-y-2">
-                      {selectedModule.lessons.map((lesson, index) => (
-                        <button
-                          key={lesson.id}
-                          onClick={() => {
-                            setSelectedLesson(lesson);
-                            setQuizAnswers({});
-                            setShowQuizResults({});
-                          }}
-                          className={cn(
-                            'w-full text-left px-3 py-2 rounded-lg text-sm transition-all flex items-center gap-3',
-                            selectedLesson.id === lesson.id
-                              ? 'bg-emerald-500/20 text-emerald-400'
-                              : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                          )}
-                        >
-                          <span className="w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center text-xs">
-                            {index + 1}
-                          </span>
-                          <span className="truncate">{lesson.title}</span>
-                        </button>
-                      ))}
+                  {/* Lesson nav */}
+                  <div className="stadium-card" style={{ padding: 14 }}>
+                    <div className="kicker" style={{ marginBottom: 8 }}>IN THIS DRILL</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {selectedModule.lessons.map((lesson, index) => {
+                        const isActive = selectedLesson.id === lesson.id;
+                        return (
+                          <button
+                            key={lesson.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedLesson(lesson);
+                              setQuizAnswers({});
+                              setShowQuizResults({});
+                            }}
+                            style={{
+                              width: '100%',
+                              textAlign: 'left',
+                              padding: '8px 10px',
+                              borderRadius: 6,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 10,
+                              background: isActive ? 'var(--pitch-tint)' : 'transparent',
+                              border: '1px solid ' + (isActive ? 'oklch(0.72 0.21 145 / 0.3)' : 'transparent'),
+                              color: isActive ? 'var(--text)' : 'var(--text-dim)',
+                              fontFamily: 'var(--font-display)',
+                              fontSize: 12,
+                              fontWeight: isActive ? 600 : 500,
+                              cursor: 'pointer',
+                              transition: 'background .12s, color .12s',
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!isActive) {
+                                e.currentTarget.style.background = 'var(--surface-2)';
+                                e.currentTarget.style.color = 'var(--text)';
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isActive) {
+                                e.currentTarget.style.background = 'transparent';
+                                e.currentTarget.style.color = 'var(--text-dim)';
+                              }
+                            }}
+                          >
+                            <span
+                              className="mono num"
+                              style={{
+                                width: 18,
+                                height: 18,
+                                borderRadius: 3,
+                                background: isActive ? 'var(--pitch)' : 'var(--surface-2)',
+                                color: isActive ? 'oklch(0.14 0.05 145)' : 'var(--text-dim)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: 9,
+                                fontWeight: 700,
+                                flexShrink: 0,
+                              }}
+                            >
+                              {index + 1}
+                            </span>
+                            <span
+                              style={{
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {lesson.title}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -502,31 +1069,57 @@ export default function CoachingArenaPage() {
         {/* CTA Section */}
         {!selectedModule && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
-            className="mt-12"
+            className="stadium-card"
+            style={{
+              marginTop: 4,
+              padding: 24,
+              textAlign: 'center',
+            }}
           >
-            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-8 text-center">
-              <h3 className="text-xl font-bold text-white mb-3">Already Know the Basics?</h3>
-              <p className="text-slate-400 mb-6 max-w-xl mx-auto">
-                Head over to the Learning Center for more advanced content or start building your portfolio right away.
-              </p>
-              <div className="flex items-center justify-center gap-4">
-                <Link href="/learn">
-                  <button className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-xl transition-colors">
-                    Learning Center
-                  </button>
-                </Link>
-                <Link href="/portfolio">
-                  <button className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-xl transition-colors">
-                    Build Portfolio
-                  </button>
-                </Link>
-              </div>
+            <div className="kicker">READY FOR MORE</div>
+            <h3
+              className="display"
+              style={{
+                fontSize: 'clamp(18px, 2.2vw, 22px)',
+                letterSpacing: '-0.03em',
+                margin: '6px 0 6px',
+              }}
+            >
+              Know the basics already?
+            </h3>
+            <p
+              style={{
+                color: 'var(--text-dim)',
+                fontSize: 13,
+                margin: '0 auto 18px',
+                maxWidth: 520,
+                lineHeight: 1.55,
+              }}
+            >
+              Head to the Academy for more advanced content, or jump straight onto the pitch and field a squad.
+            </p>
+            <div className="flex flex-wrap items-center justify-center" style={{ gap: 10 }}>
+              <Link
+                href="/learn"
+                className="stadium-btn stadium-btn-ghost"
+                style={{ textDecoration: 'none' }}
+              >
+                <Icon.Guide size={14} /> Academy
+              </Link>
+              <Link
+                href="/portfolio"
+                className="stadium-btn stadium-btn-primary"
+                style={{ textDecoration: 'none' }}
+              >
+                <Icon.Pitch size={14} /> Field a squad
+              </Link>
             </div>
           </motion.div>
         )}
+      </div>
     </AppLayout>
   );
 }

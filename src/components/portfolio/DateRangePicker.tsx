@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { format, subDays, subMonths, subYears, startOfDay, endOfDay } from 'date-fns';
-import { cn } from '@/lib/utils';
 
 interface DateRangePickerProps {
   portfolioCreatedDate: Date;
@@ -35,17 +34,11 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
-  // Allow dates up to 2 years before portfolio creation for historical view
   const absoluteMinDate = subYears(portfolioCreatedDate, 2);
 
-  // Initialize custom date inputs when dates change
   useEffect(() => {
-    if (startDate) {
-      setCustomStart(format(startDate, 'yyyy-MM-dd'));
-    }
-    if (endDate) {
-      setCustomEnd(format(endDate, 'yyyy-MM-dd'));
-    }
+    if (startDate) setCustomStart(format(startDate, 'yyyy-MM-dd'));
+    if (endDate) setCustomEnd(format(endDate, 'yyyy-MM-dd'));
   }, [startDate, endDate]);
 
   const handlePresetClick = (preset: PresetKey) => {
@@ -55,25 +48,13 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
     let start: Date;
 
     switch (preset) {
-      case '1W':
-        start = startOfDay(subDays(today, 7));
-        break;
-      case '1M':
-        start = startOfDay(subMonths(today, 1));
-        break;
-      case '3M':
-        start = startOfDay(subMonths(today, 3));
-        break;
-      case '6M':
-        start = startOfDay(subMonths(today, 6));
-        break;
-      case '1Y':
-        start = startOfDay(subYears(today, 1));
-        break;
+      case '1W': start = startOfDay(subDays(today, 7)); break;
+      case '1M': start = startOfDay(subMonths(today, 1)); break;
+      case '3M': start = startOfDay(subMonths(today, 3)); break;
+      case '6M': start = startOfDay(subMonths(today, 6)); break;
+      case '1Y': start = startOfDay(subYears(today, 1)); break;
       case 'ALL':
-      default:
-        start = startOfDay(portfolioCreatedDate);
-        break;
+      default:    start = startOfDay(portfolioCreatedDate); break;
     }
 
     onChange(start, today);
@@ -83,12 +64,9 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
     const value = e.target.value;
     setCustomStart(value);
     setActivePreset(null);
-
     if (value) {
       const newStart = startOfDay(new Date(value));
-      if (newStart <= maxDate) {
-        onChange(newStart, endDate || maxDate);
-      }
+      if (newStart <= maxDate) onChange(newStart, endDate || maxDate);
     }
   };
 
@@ -96,12 +74,9 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
     const value = e.target.value;
     setCustomEnd(value);
     setActivePreset(null);
-
     if (value) {
       const newEnd = endOfDay(new Date(value));
-      if (newEnd <= maxDate) {
-        onChange(startDate || portfolioCreatedDate, newEnd);
-      }
+      if (newEnd <= maxDate) onChange(startDate || portfolioCreatedDate, newEnd);
     }
   };
 
@@ -112,77 +87,143 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* Preset Buttons */}
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-slate-500 mr-1">Period:</span>
-        <div className="flex items-center gap-1">
-          {PRESETS.map((preset) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Preset chips */}
+      <div className="flex items-center flex-wrap" style={{ gap: 6 }}>
+        <span className="kicker" style={{ marginRight: 4 }}>PERIOD</span>
+        {PRESETS.map((preset) => {
+          const isActive = activePreset === preset.key;
+          return (
             <button
               key={preset.key}
+              type="button"
               onClick={() => handlePresetClick(preset.key)}
-              className={cn(
-                'px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
-                activePreset === preset.key
-                  ? 'bg-emerald-500 text-white'
-                  : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
-              )}
+              className="mono"
+              style={{
+                padding: '6px 10px',
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                background: isActive ? 'var(--pitch)' : 'var(--surface-2)',
+                color: isActive ? 'oklch(0.14 0.05 145)' : 'var(--text-dim)',
+                border: '1px solid ' + (isActive ? 'var(--pitch-deep)' : 'var(--line)'),
+                borderRadius: 4,
+                cursor: 'pointer',
+                transition: 'background .12s, border-color .12s',
+              }}
             >
               {preset.label}
             </button>
-          ))}
-        </div>
+          );
+        })}
         <button
+          type="button"
           onClick={() => setShowCustom(!showCustom)}
-          className={cn(
-            'px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
-            showCustom || activePreset === null
-              ? 'bg-emerald-500 text-white'
-              : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
-          )}
+          className="mono"
+          style={{
+            padding: '6px 10px',
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            background:
+              showCustom || activePreset === null ? 'var(--text)' : 'var(--surface-2)',
+            color:
+              showCustom || activePreset === null ? 'var(--bg)' : 'var(--text-dim)',
+            border:
+              '1px solid ' +
+              (showCustom || activePreset === null ? 'var(--text)' : 'var(--line)'),
+            borderRadius: 4,
+            cursor: 'pointer',
+          }}
         >
           Custom
         </button>
       </div>
 
-      {/* Custom Date Range Inputs */}
+      {/* Custom range */}
       {showCustom && (
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-slate-500">From:</label>
+        <div className="flex flex-wrap items-center" style={{ gap: 10 }}>
+          <div className="flex items-center" style={{ gap: 6 }}>
+            <label className="kicker">FROM</label>
             <input
               type="date"
               value={customStart}
               min={format(absoluteMinDate, 'yyyy-MM-dd')}
               max={format(maxDate, 'yyyy-MM-dd')}
               onChange={handleCustomStartChange}
-              className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
+              style={{
+                padding: '6px 10px',
+                background: 'var(--surface-2)',
+                border: '1px solid var(--line)',
+                borderRadius: 6,
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                color: 'var(--text)',
+                outline: 'none',
+                colorScheme: 'dark',
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = 'var(--pitch)';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = 'var(--line)';
+              }}
             />
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-slate-500">To:</label>
+          <div className="flex items-center" style={{ gap: 6 }}>
+            <label className="kicker">TO</label>
             <input
               type="date"
               value={customEnd}
               min={format(absoluteMinDate, 'yyyy-MM-dd')}
               max={format(maxDate, 'yyyy-MM-dd')}
               onChange={handleCustomEndChange}
-              className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
+              style={{
+                padding: '6px 10px',
+                background: 'var(--surface-2)',
+                border: '1px solid var(--line)',
+                borderRadius: 6,
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                color: 'var(--text)',
+                outline: 'none',
+                colorScheme: 'dark',
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = 'var(--pitch)';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = 'var(--line)';
+              }}
             />
           </div>
           <button
+            type="button"
             onClick={handleReset}
-            className="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white transition-colors"
+            className="mono"
+            style={{
+              padding: '6px 10px',
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-mute)',
+              cursor: 'pointer',
+            }}
           >
             Reset
           </button>
         </div>
       )}
 
-      {/* Current Range Display */}
+      {/* Current range */}
       {startDate && endDate && (
-        <div className="text-xs text-slate-500">
-          Showing: {format(startDate, 'MMM dd, yyyy')} - {format(endDate, 'MMM dd, yyyy')}
+        <div className="mono" style={{ fontSize: 10, color: 'var(--text-mute)', letterSpacing: '0.06em' }}>
+          SHOWING: {format(startDate, 'MMM dd, yyyy').toUpperCase()} → {format(endDate, 'MMM dd, yyyy').toUpperCase()}
         </div>
       )}
     </div>

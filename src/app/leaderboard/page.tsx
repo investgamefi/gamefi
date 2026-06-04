@@ -1,42 +1,275 @@
 'use client';
 
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AppLayout, LeaderboardTable } from '@/components';
-import { useTheme } from '@/components/ThemeProvider';
-import { cn } from '@/lib/utils';
+import { Icon } from '@/components/stadium/Icon';
+import { useStore } from '@/store/useStore';
+import { formatPercent, calculatePortfolioPerformance } from '@/lib/utils';
+import { fetchMultiplePortfolioPerformances } from '@/hooks/usePortfolioRealPerformance';
+import { Portfolio, PortfolioPerformance } from '@/types';
+
+type Rank = 1 | 2 | 3;
+
+type PodiumEntry = {
+  rank: Rank;
+  portfolioId: string;
+  portfolioName: string;
+  username: string;
+  avatar: string;
+  formation: string;
+  returnPercent: number;
+};
 
 export default function LeaderboardPage() {
-  const { resolvedTheme } = useTheme();
+  const { publicPortfolios, portfolios, currentUser, refreshPortfolios } = useStore();
+  const [realPerformances, setRealPerformances] = useState<
+    Map<string, { performance: PortfolioPerformance; isRealData: boolean }>
+  >(new Map());
+  const [usernames, setUsernames] = useState<Map<string, { username: string; avatar: string }>>(new Map());
+
+  useEffect(() => {
+    refreshPortfolios();
+  }, [refreshPortfolios]);
+
+  // Combine public portfolios with the user's own public ones (mirrors LeaderboardTable)
+  const allPortfolios = useMemo<Portfolio[]>(() => {
+    const map = new Map<string, Portfolio>();
+    publicPortfolios.forEach((p) => map.set(p.id, p));
+    portfolios.forEach((p) => {
+      if (p.isPublic) map.set(p.id, p);
+    });
+    return Array.from(map.values());
+  }, [publicPortfolios, portfolios]);
+
+  // Fetch real per-portfolio performance
+  useEffect(() => {
+    if (allPortfolios.length === 0) return;
+    const run = async () => {
+      try {
+        const performances = await fetchMultiplePortfolioPerformances(allPortfolios, '1M', true);
+        setRealPerformances(performances);
+      } catch (err) {
+        console.error('Failed to fetch podium performances:', err);
+      }
+    };
+    run();
+  }, [allPortfolios]);
+
+  // Fetch usernames for each portfolio owner
+  useEffect(() => {
+    const fetchUsernames = async () => {
+      const userIds = [...new Set(allPortfolios.map((p) => p.userId))];
+      const next = new Map<string, { username: string; avatar: string }>();
+      for (const userId of userIds) {
+        if (currentUser && userId === currentUser.id) {
+          next.set(userId, {
+            username: currentUser.username,
+            avatar: currentUser.avatar || '/default-avatar.png',
+          });
+          continue;
+        }
+        try {
+          const res = await fetch(`/api/users?id=${userId}`);
+          const data = await res.json();
+          if (data.success && data.user) {
+            next.set(userId, {
+              username: data.user.username,
+              avatar: data.user.avatar || '/default-avatar.png',
+            });
+          }
+        } catch {
+          next.set(userId, { username: 'Unknown', avatar: '/default-avatar.png' });
+        }
+      }
+      setUsernames(next);
+    };
+    if (allPortfolios.length > 0) fetchUsernames();
+  }, [allPortfolios, currentUser]);
+
+  const podium = useMemo<PodiumEntry[]>(() => {
+    if (allPortfolios.length === 0) return [];
+    return allPortfolios
+      .map((p) => {
+        const user = usernames.get(p.userId);
+        const real = realPerformances.get(p.id);
+        const perf = real?.performance || calculatePortfolioPerformance(p);
+        return {
+          portfolioId: p.id,
+          portfolioName: p.name,
+          formation: p.formation,
+          username: user?.username || '…',
+          avatar: user?.avatar || '/default-avatar.png',
+          returnPercent: perf.totalReturnPercent,
+        };
+      })
+      .sort((a, b) => b.returnPercent - a.returnPercent)
+      .slice(0, 3)
+      .map((e, i) => ({ ...e, rank: (i + 1) as Rank }));
+  }, [allPortfolios, usernames, realPerformances]);
 
   return (
-    <AppLayout>
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-        <h1 className={cn('text-3xl font-bold mb-2', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>Leaderboard</h1>
-        <p className={cn(resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>See how your portfolio stacks up against the competition.</p>
-      </motion.div>
-
-      {/* Trophy Banner */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="bg-gradient-to-r from-yellow-500/10 via-amber-500/10 to-orange-500/10 border border-yellow-500/20 rounded-2xl p-6 mb-8"
-      >
-        <div className="flex items-center gap-6">
-          <div className="text-6xl">🏆</div>
+    <AppLayout flush>
+      <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {/* Header */}
+        <div className="flex flex-wrap items-end justify-between" style={{ gap: 14 }}>
           <div>
-            <h2 className={cn('text-xl font-bold mb-1', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>Compete for the Top</h2>
-            <p className={cn(resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>
-              Build the best performing portfolio and climb the ranks. Top performers earn badges and rewards!
-            </p>
+            <div className="kicker">SEASON 1 · ALL DIVISIONS</div>
+            <h1
+              className="display"
+              style={{ fontSize: 'clamp(24px, 3vw, 32px)', letterSpacing: '-0.04em', margin: '2px 0 0' }}
+            >
+              League Table
+            </h1>
+            <div className="mono" style={{ fontSize: 12, color: 'var(--text-mute)', marginTop: 6 }}>
+              Top performers earn badges, an armband, and bragging rights all season.
+            </div>
           </div>
         </div>
-      </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+        {/* Podium */}
+        {podium.length > 0 && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: 12,
+              alignItems: 'end',
+            }}
+          >
+            {/* 2nd · 1st · 3rd ordering for the podium effect */}
+            {[
+              podium.find((t) => t.rank === 2),
+              podium.find((t) => t.rank === 1),
+              podium.find((t) => t.rank === 3),
+            ].map((entry, idx) =>
+              entry ? (
+                <PodiumCard key={entry.portfolioId} entry={entry} />
+              ) : (
+                <PodiumPlaceholder key={`empty-${idx}`} rank={(idx === 0 ? 2 : idx === 1 ? 1 : 3) as Rank} />
+              ),
+            )}
+          </div>
+        )}
+
+        {/* Full table (now stadium-styled) */}
         <LeaderboardTable />
-      </motion.div>
+      </div>
     </AppLayout>
   );
 }
+
+const RANK_COLORS: Record<Rank, { color: string; height: number; label: string }> = {
+  1: { color: 'oklch(0.83 0.18 90)',  height: 200, label: 'CHAMPION'    },
+  2: { color: 'oklch(0.78 0.01 250)', height: 170, label: 'RUNNER-UP'   },
+  3: { color: 'oklch(0.55 0.14 50)',  height: 150, label: '3RD PLACE'   },
+};
+
+const PodiumCard: React.FC<{ entry: PodiumEntry }> = ({ entry }) => {
+  const cfg = RANK_COLORS[entry.rank];
+  return (
+    <div style={{ height: cfg.height, position: 'relative' }}>
+      <div
+        className="stadium-card"
+        style={{
+          height: '100%',
+          padding: 16,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          borderTop: `4px solid ${cfg.color}`,
+        }}
+      >
+        <div className="flex justify-between" style={{ alignItems: 'flex-start' }}>
+          <div
+            className="display num"
+            style={{ fontSize: 40, color: cfg.color, letterSpacing: '-0.06em', lineHeight: 0.9 }}
+          >
+            {String(entry.rank).padStart(2, '0')}
+          </div>
+          <Icon.Trophy size={24} style={{ color: cfg.color }} />
+        </div>
+        <div>
+          <div className="kicker" style={{ color: cfg.color }}>
+            {cfg.label}
+          </div>
+          <div
+            className="display"
+            style={{
+              fontSize: 15,
+              letterSpacing: '-0.02em',
+              marginTop: 2,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {entry.portfolioName}
+          </div>
+          <div className="flex items-center" style={{ gap: 6, marginTop: 4 }}>
+            <img
+              src={entry.avatar}
+              alt={entry.username}
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: 3,
+                border: '1px solid var(--line)',
+                objectFit: 'cover',
+              }}
+            />
+            <span className="mono" style={{ fontSize: 10, color: 'var(--text-mute)' }}>
+              @{entry.username} · {entry.formation}
+            </span>
+          </div>
+          <div
+            className="display num"
+            style={{
+              fontSize: 22,
+              color: entry.returnPercent >= 0 ? 'var(--pitch)' : 'var(--ref-red)',
+              marginTop: 6,
+              letterSpacing: '-0.04em',
+            }}
+          >
+            {formatPercent(entry.returnPercent)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const PodiumPlaceholder: React.FC<{ rank: Rank }> = ({ rank }) => {
+  const cfg = RANK_COLORS[rank];
+  return (
+    <div style={{ height: cfg.height, position: 'relative' }}>
+      <div
+        className="stadium-card"
+        style={{
+          height: '100%',
+          padding: 16,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          borderTop: `4px solid ${cfg.color}`,
+          borderStyle: 'dashed',
+          opacity: 0.5,
+        }}
+      >
+        <div
+          className="display num"
+          style={{ fontSize: 40, color: cfg.color, letterSpacing: '-0.06em', lineHeight: 0.9, opacity: 0.5 }}
+        >
+          {String(rank).padStart(2, '0')}
+        </div>
+        <div>
+          <div className="kicker" style={{ color: cfg.color, opacity: 0.6 }}>
+            {cfg.label}
+          </div>
+          <div className="mono" style={{ fontSize: 10, color: 'var(--text-mute)', marginTop: 4 }}>
+            Vacant — make your squad public to claim
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

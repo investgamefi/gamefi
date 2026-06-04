@@ -3,14 +3,14 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Portfolio, User } from '@/types';
+import { Portfolio } from '@/types';
 import { useStore } from '@/store/useStore';
 import { userStorage } from '@/lib/storage';
-import { cn, formatCurrency, formatPercent, getRelativeTime, formatDate } from '@/lib/utils';
+import { formatCurrency, formatPercent, getRelativeTime } from '@/lib/utils';
 import { FormationField } from './FormationField';
-import { Button, TeamLimitModal } from '@/components/ui';
+import { TeamLimitModal } from '@/components/ui';
 import { usePortfolioRealPerformance } from '@/hooks/usePortfolioRealPerformance';
-import { useTheme } from '@/components/ThemeProvider';
+import { Icon } from '@/components/stadium/Icon';
 
 interface PortfolioCardProps {
   portfolio: Portfolio;
@@ -23,33 +23,29 @@ export const PortfolioCard: React.FC<PortfolioCardProps> = ({
   showUser = true,
   showActions = true,
 }) => {
-  const { resolvedTheme } = useTheme();
   const { currentUser, likePortfolio, clonePortfolio, canCreateTeam, getTeamSlotInfo, unlockTeamSlot } = useStore();
   const owner = userStorage.getUserById(portfolio.userId);
   const [showLimitModal, setShowLimitModal] = useState(false);
 
-  // Use real performance data from Yahoo Finance
   const { performance, isLoading, isRealData } = usePortfolioRealPerformance(portfolio);
 
   const isOwner = currentUser?.id === portfolio.userId;
   const hasLiked = currentUser ? portfolio.likes.includes(currentUser.id) : false;
   const filledPositions = portfolio.players.filter((p) => p.asset !== null).length;
+  const positive = performance.totalReturnPercent >= 0;
 
   const teamSlotInfo = getTeamSlotInfo();
 
   const handleLike = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (currentUser) {
-      likePortfolio(portfolio.id);
-    }
+    if (currentUser) likePortfolio(portfolio.id);
   };
 
   const handleClone = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (currentUser && !isOwner) {
-      // Check if user can create more teams
       if (!canCreateTeam()) {
         setShowLimitModal(true);
         return;
@@ -62,163 +58,190 @@ export const PortfolioCard: React.FC<PortfolioCardProps> = ({
     const success = await unlockTeamSlot();
     if (success) {
       setShowLimitModal(false);
-      // Now clone the portfolio
       clonePortfolio(portfolio.id);
     }
   };
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -4 }}
-      className={cn(
-        'rounded-2xl overflow-hidden transition-all duration-300 border',
-        resolvedTheme === 'dark'
-          ? 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
-          : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
-      )}
+      whileHover={{ y: -3 }}
+      className="stadium-card"
+      style={{
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        transition: 'border-color .15s ease',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = 'var(--pitch)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = 'var(--line)';
+      }}
     >
-      <Link href={`/portfolio/${portfolio.id}`}>
+      <Link
+        href={`/portfolio/${portfolio.id}`}
+        style={{
+          textDecoration: 'none',
+          color: 'inherit',
+          display: 'flex',
+          flexDirection: 'column',
+          flex: 1,
+        }}
+      >
         {/* Header */}
-        <div className={cn(
-          'p-4 border-b',
-          resolvedTheme === 'dark' ? 'border-slate-800' : 'border-slate-200'
-        )}>
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <h3 className={cn('font-semibold truncate', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>{portfolio.name}</h3>
-              <p className={cn('text-sm truncate', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>{portfolio.description || 'No description'}</p>
+        <div
+          style={{
+            padding: 14,
+            borderBottom: '1px solid var(--line)',
+          }}
+        >
+          <div className="flex items-start justify-between" style={{ gap: 8 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div
+                className="display"
+                style={{
+                  fontSize: 16,
+                  letterSpacing: '-0.02em',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {portfolio.name}
+              </div>
+              {portfolio.description && (
+                <div
+                  className="mono"
+                  style={{
+                    fontSize: 10,
+                    color: 'var(--text-mute)',
+                    marginTop: 2,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {portfolio.description}
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <span className="px-2 py-1 bg-emerald-500/10 text-emerald-500 text-xs font-medium rounded-lg">
-                {portfolio.formation}
-              </span>
-            </div>
+            <span className="pill pill-pitch" style={{ flexShrink: 0 }}>
+              {portfolio.formation}
+            </span>
           </div>
 
-          {/* User */}
           {showUser && owner && (
-            <div className="flex items-center gap-2 mt-3">
-              <img src={owner.avatar} alt={owner.username} className="w-6 h-6 rounded-full" />
-              <span className={cn('text-sm', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>@{owner.username}</span>
-              <span className="text-xs text-slate-500">• {getRelativeTime(portfolio.createdAt)}</span>
+            <div className="flex items-center" style={{ gap: 8, marginTop: 8 }}>
+              <img
+                src={owner.avatar}
+                alt={owner.username}
+                style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: 3,
+                  border: '1px solid var(--line)',
+                  objectFit: 'cover',
+                  flexShrink: 0,
+                }}
+              />
+              <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.04em' }}>
+                @{owner.username} · {getRelativeTime(portfolio.createdAt).toUpperCase()}
+              </span>
             </div>
           )}
         </div>
 
-        {/* Formation Preview */}
-        <div className="p-4">
-          <div className="w-full max-w-[200px] mx-auto">
-            <FormationField portfolio={portfolio} compact />
+        {/* Pitch preview */}
+        <div style={{ padding: 14 }}>
+          <div style={{ width: '100%', maxWidth: 200, margin: '0 auto' }}>
+            <FormationField portfolio={portfolio} compact variant="tactics" />
           </div>
         </div>
 
         {/* Stats */}
-        <div className="px-4 pb-2">
-          <div className={cn(
-            'grid grid-cols-4 gap-2 py-3 border-t',
-            resolvedTheme === 'dark' ? 'border-slate-800' : 'border-slate-200'
-          )}>
-            <div className="text-center">
-              <p className="text-xs text-slate-500 mb-1">Value</p>
-              <p className={cn('font-semibold text-sm', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>{formatCurrency(performance.totalValue)}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-slate-500 mb-1">
-                Return {isRealData && <span className="text-emerald-500">•</span>}
-              </p>
-              {isLoading ? (
-                <div className={cn('w-12 h-5 animate-pulse rounded mx-auto', resolvedTheme === 'dark' ? 'bg-slate-700' : 'bg-slate-200')} />
-              ) : (
-                <p
-                  className={cn(
-                    'font-semibold text-sm',
-                    performance.totalReturnPercent >= 0 ? 'text-emerald-400' : 'text-red-400'
-                  )}
-                >
-                  {formatPercent(performance.totalReturnPercent)}
-                </p>
-              )}
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-slate-500 mb-1">Created</p>
-              <p className={cn('font-semibold text-sm', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>{formatDate(portfolio.createdAt)}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-slate-500 mb-1">Players</p>
-              <p className={cn('font-semibold text-sm', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>{filledPositions}/11</p>
-            </div>
-          </div>
+        <div
+          style={{
+            padding: '10px 14px 14px',
+            borderTop: '1px solid var(--line)',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: 6,
+          }}
+        >
+          <StatMini label="VALUE" value={formatCurrency(performance.totalValue)} />
+          <StatMini
+            label="RETURN"
+            value={
+              isLoading
+                ? '—'
+                : formatPercent(performance.totalReturnPercent)
+            }
+            tone={isLoading ? undefined : positive ? 'pos' : 'neg'}
+            realData={isRealData}
+          />
+          <StatMini label="FILLED" value={`${filledPositions}/11`} />
+          <StatMini label="LIKES" value={String(portfolio.likes.length)} />
         </div>
-
-        {/* Actions */}
-        {showActions && (
-          <div className="px-4 pb-4">
-            <div className={cn(
-              'flex items-center gap-2 pt-2 border-t',
-              resolvedTheme === 'dark' ? 'border-slate-800' : 'border-slate-200'
-            )}>
-              <button
-                onClick={handleLike}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-                  hasLiked
-                    ? 'bg-pink-500/10 text-pink-400'
-                    : resolvedTheme === 'dark'
-                      ? 'bg-slate-800 text-slate-400 hover:text-pink-400'
-                      : 'bg-slate-100 text-slate-600 hover:text-pink-500'
-                )}
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill={hasLiked ? 'currentColor' : 'none'}
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-                  />
-                </svg>
-                {portfolio.likes.length}
-              </button>
-
-              {!isOwner && (
-                <button
-                  onClick={handleClone}
-                  className={cn(
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-                    resolvedTheme === 'dark'
-                      ? 'bg-slate-800 text-slate-400 hover:text-emerald-400'
-                      : 'bg-slate-100 text-slate-600 hover:text-emerald-500'
-                  )}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                    />
-                  </svg>
-                  {portfolio.cloneCount}
-                </button>
-              )}
-
-              <div className="flex-1" />
-
-              <span className="text-xs text-slate-500">
-                {portfolio.isPublic ? 'Public' : 'Private'}
-              </span>
-            </div>
-          </div>
-        )}
       </Link>
 
-      {/* Team Limit Modal */}
+      {/* Actions */}
+      {showActions && (
+        <div
+          style={{
+            padding: 10,
+            borderTop: '1px solid var(--line)',
+            display: 'flex',
+            gap: 6,
+            alignItems: 'center',
+            background: 'var(--surface-2)',
+          }}
+        >
+          <button
+            type="button"
+            onClick={handleLike}
+            className="stadium-btn stadium-btn-ghost"
+            style={{
+              padding: '5px 10px',
+              fontSize: 11,
+              gap: 4,
+              color: hasLiked ? 'var(--ref-red)' : undefined,
+              background: hasLiked ? 'oklch(0.65 0.22 25 / 0.08)' : undefined,
+              borderColor: hasLiked ? 'oklch(0.65 0.22 25 / 0.3)' : undefined,
+            }}
+          >
+            {hasLiked ? '♥' : '♡'} {portfolio.likes.length}
+          </button>
+
+          {!isOwner && (
+            <button
+              type="button"
+              onClick={handleClone}
+              className="stadium-btn stadium-btn-ghost"
+              style={{ padding: '5px 10px', fontSize: 11, gap: 4 }}
+            >
+              <Icon.Lineup size={11} /> {portfolio.cloneCount}
+            </button>
+          )}
+
+          <span
+            className="mono"
+            style={{
+              marginLeft: 'auto',
+              fontSize: 9,
+              color: 'var(--text-mute)',
+              fontWeight: 700,
+              letterSpacing: '0.12em',
+            }}
+          >
+            {portfolio.isPublic ? 'PUBLIC' : 'PRIVATE'}
+          </span>
+        </div>
+      )}
+
+      {/* Team limit modal */}
       <TeamLimitModal
         isOpen={showLimitModal}
         onClose={() => setShowLimitModal(false)}
@@ -230,3 +253,33 @@ export const PortfolioCard: React.FC<PortfolioCardProps> = ({
     </motion.div>
   );
 };
+
+const StatMini: React.FC<{
+  label: string;
+  value: string;
+  tone?: 'pos' | 'neg';
+  realData?: boolean;
+}> = ({ label, value, tone, realData }) => (
+  <div style={{ textAlign: 'center', minWidth: 0 }}>
+    <div className="kicker" style={{ fontSize: 8 }}>
+      {label}
+      {realData && (
+        <span style={{ color: 'var(--pitch)', marginLeft: 3 }}>•</span>
+      )}
+    </div>
+    <div
+      className="mono num"
+      style={{
+        fontSize: 12,
+        marginTop: 2,
+        fontWeight: 700,
+        color: tone === 'pos' ? 'var(--pitch)' : tone === 'neg' ? 'var(--ref-red)' : 'var(--text)',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {value}
+    </div>
+  </div>
+);

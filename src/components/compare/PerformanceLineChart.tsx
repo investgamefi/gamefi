@@ -12,15 +12,13 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { BenchmarkPerformance, PortfolioPerformance } from '@/types';
-import { cn } from '@/lib/utils';
-import { useTheme } from '@/components/ThemeProvider';
 
 interface PortfolioData {
   name: string;
   color: string;
   performance: PortfolioPerformance;
-  createdAt?: string; // Portfolio creation date (ISO string)
-  realHistoricalData?: { date: string; value: number; return: number }[]; // Real data from Yahoo Finance
+  createdAt?: string;
+  realHistoricalData?: { date: string; value: number; return: number }[];
 }
 
 interface PerformanceLineChartProps {
@@ -28,57 +26,41 @@ interface PerformanceLineChartProps {
   benchmarks: BenchmarkPerformance[];
 }
 
-const PORTFOLIO_COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b'];
+const SLOT_COLORS = [
+  'oklch(0.72 0.21 145)',  // pitch green
+  'oklch(0.75 0.14 230)',  // sky
+  'oklch(0.78 0.18 320)',  // pink-purple
+  'oklch(0.83 0.18 90)',   // whistle
+];
 
 export const PerformanceLineChart: React.FC<PerformanceLineChartProps> = ({
   portfolios,
   benchmarks,
 }) => {
-  const { resolvedTheme } = useTheme();
+  const portfolioCreationDates = useMemo(
+    () => portfolios.map((p) => (p.createdAt ? p.createdAt.split('T')[0] : null)),
+    [portfolios],
+  );
 
-  // Get portfolio creation dates
-  const portfolioCreationDates = useMemo(() => {
-    return portfolios.map((p) => {
-      if (p.createdAt) {
-        return p.createdAt.split('T')[0];
-      }
-      return null;
-    });
-  }, [portfolios]);
-
-  // Merge and normalize all data series to start at 100
   const chartData = useMemo(() => {
-    // Collect all unique dates from benchmarks
     const allDates = new Set<string>();
-    benchmarks.forEach((b) => {
-      b.normalizedData.forEach((d) => allDates.add(d.date));
-    });
-
-    // Also add portfolio historical data dates if available
-    // Prefer realHistoricalData over performance.historicalData
+    benchmarks.forEach((b) => b.normalizedData.forEach((d) => allDates.add(d.date)));
     portfolios.forEach((p) => {
       const historicalData = p.realHistoricalData || p.performance.historicalData;
       historicalData?.forEach((d) => allDates.add(d.date));
     });
 
     const sortedDates = Array.from(allDates).sort();
-
     if (sortedDates.length === 0) return [];
 
-    // Build merged data
     return sortedDates.map((date) => {
       const point: Record<string, string | number | undefined> = { date };
 
-      // Add benchmark values
       benchmarks.forEach((b) => {
         const dataPoint = b.normalizedData.find((d) => d.date === date);
-        if (dataPoint) {
-          point[b.symbol] = dataPoint.value;
-        }
+        if (dataPoint) point[b.symbol] = dataPoint.value;
       });
 
-      // Add portfolio values (normalized) - split into actual and simulated
-      // Prefer realHistoricalData over performance.historicalData
       portfolios.forEach((p, index) => {
         const historicalData = p.realHistoricalData || p.performance.historicalData;
         if (historicalData && historicalData.length > 0) {
@@ -88,16 +70,11 @@ export const PerformanceLineChart: React.FC<PerformanceLineChartProps> = ({
             const normalizedValue = (dataPoint.value / firstValue) * 100;
             const creationDate = portfolioCreationDates[index];
 
-            // Determine if this date is before or after portfolio creation
             if (creationDate && date < creationDate) {
-              // Simulated (before creation)
               point[`portfolio_${index}_simulated`] = normalizedValue;
             } else {
-              // Actual (after creation or no creation date)
               point[`portfolio_${index}_actual`] = normalizedValue;
             }
-
-            // For the transition point (creation date), include in both
             if (creationDate && date === creationDate) {
               point[`portfolio_${index}_simulated`] = normalizedValue;
             }
@@ -109,13 +86,11 @@ export const PerformanceLineChart: React.FC<PerformanceLineChartProps> = ({
     });
   }, [portfolios, benchmarks, portfolioCreationDates]);
 
-  // Format date for display
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  // Custom tooltip
   const CustomTooltip = ({ active, payload, label }: {
     active?: boolean;
     payload?: Array<{ name: string; value: number; color: string; dataKey: string }>;
@@ -123,15 +98,11 @@ export const PerformanceLineChart: React.FC<PerformanceLineChartProps> = ({
   }) => {
     if (!active || !payload || !payload.length) return null;
 
-    // Group portfolio actual/simulated together
     const groupedPayload: Array<{ name: string; value: number; color: string; isSimulated: boolean }> = [];
     const processedPortfolios = new Set<string>();
 
     payload.forEach((entry) => {
-      const dataKey = entry.dataKey;
-
-      // Check if this is a portfolio entry
-      const portfolioMatch = dataKey.match(/^portfolio_(\d+)_(actual|simulated)$/);
+      const portfolioMatch = entry.dataKey.match(/^portfolio_(\d+)_(actual|simulated)$/);
       if (portfolioMatch) {
         const portfolioIndex = portfolioMatch[1];
         if (!processedPortfolios.has(portfolioIndex)) {
@@ -145,36 +116,76 @@ export const PerformanceLineChart: React.FC<PerformanceLineChartProps> = ({
           });
         }
       } else {
-        // Benchmark entry
-        groupedPayload.push({
-          name: entry.name,
-          value: entry.value,
-          color: entry.color,
-          isSimulated: false,
-        });
+        groupedPayload.push({ name: entry.name, value: entry.value, color: entry.color, isSimulated: false });
       }
     });
 
     return (
-      <div className={cn(
-        'rounded-lg p-3 shadow-xl border',
-        resolvedTheme === 'dark'
-          ? 'bg-slate-800 border-slate-700'
-          : 'bg-white border-slate-200'
-      )}>
-        <p className={cn('text-xs mb-2', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>{label ? formatDate(label) : ''}</p>
-        <div className="space-y-1">
+      <div
+        className="stadium-card"
+        style={{
+          padding: '8px 12px',
+          background: 'var(--ink)',
+          border: '1px solid var(--line-2)',
+          borderRadius: 6,
+        }}
+      >
+        <div
+          className="mono"
+          style={{
+            fontSize: 9,
+            color: 'rgba(255,255,255,0.5)',
+            marginBottom: 6,
+            letterSpacing: '0.1em',
+          }}
+        >
+          {label ? formatDate(label).toUpperCase() : ''}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {groupedPayload.map((entry, index) => (
-            <div key={index} className="flex items-center gap-2 text-sm">
+            <div key={index} className="flex items-center" style={{ gap: 6, fontSize: 11 }}>
               <span
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: entry.color }}
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: entry.color,
+                }}
               />
-              <span className={cn(resolvedTheme === 'dark' ? 'text-slate-300' : 'text-slate-700')}>
+              <span
+                className="display"
+                style={{
+                  color: 'rgba(255,255,255,0.85)',
+                  fontSize: 11,
+                  flex: 1,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  maxWidth: 180,
+                }}
+              >
                 {entry.name}
-                {entry.isSimulated && <span className={cn('text-xs ml-1', resolvedTheme === 'dark' ? 'text-slate-500' : 'text-slate-400')}>(projected)</span>}
+                {entry.isSimulated && (
+                  <span
+                    className="mono"
+                    style={{ marginLeft: 4, fontSize: 9, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.06em' }}
+                  >
+                    (PROJECTED)
+                  </span>
+                )}
               </span>
-              <span className={cn('font-medium', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>
+              <span
+                className="mono num"
+                style={{
+                  color:
+                    entry.value > 100
+                      ? 'var(--pitch-glow)'
+                      : entry.value < 100
+                      ? '#ff7766'
+                      : '#fff',
+                  fontWeight: 700,
+                }}
+              >
                 {(entry.value - 100).toFixed(2)}%
               </span>
             </div>
@@ -184,74 +195,93 @@ export const PerformanceLineChart: React.FC<PerformanceLineChartProps> = ({
     );
   };
 
-  // Check if any portfolio has simulated data
   const hasSimulatedData = portfolioCreationDates.some((date) => date !== null);
 
   if (chartData.length === 0) {
     return (
-      <div className={cn(
-        'rounded-xl p-6 border',
-        resolvedTheme === 'dark'
-          ? 'bg-slate-900/50 border-slate-800'
-          : 'bg-white border-slate-200 shadow-sm'
-      )}>
-        <h3 className={cn('text-lg font-semibold mb-4', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>Performance Over Time</h3>
-        <div className={cn('h-64 flex items-center justify-center', resolvedTheme === 'dark' ? 'text-slate-500' : 'text-slate-400')}>
-          Select portfolios or benchmarks to view performance comparison
+      <div className="stadium-card" style={{ padding: 18 }}>
+        <div className="kicker">EQUITY CURVES</div>
+        <div className="display" style={{ fontSize: 16, letterSpacing: '-0.02em', marginTop: 2, marginBottom: 12 }}>
+          Performance over time
+        </div>
+        <div
+          className="kicker"
+          style={{
+            height: 240,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--text-mute)',
+          }}
+        >
+          SELECT SQUADS OR BENCHMARKS TO VIEW PERFORMANCE
         </div>
       </div>
     );
   }
 
   return (
-    <div className={cn(
-      'rounded-xl p-6 border',
-      resolvedTheme === 'dark'
-        ? 'bg-slate-900/50 border-slate-800'
-        : 'bg-white border-slate-200 shadow-sm'
-    )}>
-      <h3 className={cn('text-lg font-semibold mb-4', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>Performance Over Time</h3>
-      <div className="h-80">
+    <div className="stadium-card" style={{ padding: 18 }}>
+      <div className="kicker">EQUITY CURVES</div>
+      <div className="display" style={{ fontSize: 16, letterSpacing: '-0.02em', marginTop: 2, marginBottom: 12 }}>
+        Performance over time
+      </div>
+      <div style={{ height: 320 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+          <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
             <XAxis
               dataKey="date"
-              tick={{ fill: '#64748b', fontSize: 10 }}
-              axisLine={{ stroke: '#334155' }}
+              tick={{
+                fill: 'var(--text-mute)',
+                fontSize: 10,
+                fontFamily: 'var(--font-mono)',
+              }}
+              axisLine={{ stroke: 'var(--line)' }}
               tickLine={false}
               tickFormatter={formatDate}
               interval="preserveStartEnd"
             />
             <YAxis
-              tick={{ fill: '#64748b', fontSize: 10 }}
-              axisLine={{ stroke: '#334155' }}
+              tick={{
+                fill: 'var(--text-mute)',
+                fontSize: 10,
+                fontFamily: 'var(--font-mono)',
+              }}
+              axisLine={{ stroke: 'var(--line)' }}
               tickLine={false}
               domain={['auto', 'auto']}
               tickFormatter={(value) => `${(value - 100).toFixed(0)}%`}
             />
             <Tooltip content={<CustomTooltip />} />
             <Legend
-              wrapperStyle={{ paddingTop: '20px' }}
+              wrapperStyle={{ paddingTop: '14px' }}
               formatter={(value: string) => {
-                // Clean up legend labels
                 const cleanValue = value.replace(' (Projected)', '').replace(' (Actual)', '');
-                return <span className={cn('text-sm', resolvedTheme === 'dark' ? 'text-slate-300' : 'text-slate-700')}>{cleanValue}</span>;
+                return (
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-display)',
+                      fontSize: 12,
+                      color: 'var(--text-dim)',
+                    }}
+                  >
+                    {cleanValue}
+                  </span>
+                );
               }}
             />
-            <ReferenceLine y={100} stroke="#475569" strokeDasharray="3 3" />
+            <ReferenceLine y={100} stroke="var(--line-2)" strokeDasharray="3 3" />
 
-            {/* Portfolio lines - Simulated (before creation) */}
             {portfolios.map((p, index) => {
               const creationDate = portfolioCreationDates[index];
               if (!creationDate) return null;
-
               return (
                 <Line
                   key={`portfolio_${index}_simulated`}
                   type="monotone"
                   dataKey={`portfolio_${index}_simulated`}
                   name={`${p.name} (Projected)`}
-                  stroke={p.color || PORTFOLIO_COLORS[index % PORTFOLIO_COLORS.length]}
+                  stroke={p.color || SLOT_COLORS[index % SLOT_COLORS.length]}
                   strokeWidth={2}
                   strokeDasharray="4 4"
                   strokeOpacity={0.6}
@@ -262,21 +292,19 @@ export const PerformanceLineChart: React.FC<PerformanceLineChartProps> = ({
               );
             })}
 
-            {/* Portfolio lines - Actual (after creation) */}
             {portfolios.map((p, index) => (
               <Line
                 key={`portfolio_${index}_actual`}
                 type="monotone"
                 dataKey={`portfolio_${index}_actual`}
                 name={portfolioCreationDates[index] ? `${p.name} (Actual)` : p.name}
-                stroke={p.color || PORTFOLIO_COLORS[index % PORTFOLIO_COLORS.length]}
-                strokeWidth={2}
+                stroke={p.color || SLOT_COLORS[index % SLOT_COLORS.length]}
+                strokeWidth={2.5}
                 dot={false}
                 connectNulls
               />
             ))}
 
-            {/* Benchmark lines */}
             {benchmarks.map((b) => (
               <Line
                 key={b.symbol}
@@ -293,17 +321,34 @@ export const PerformanceLineChart: React.FC<PerformanceLineChartProps> = ({
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-slate-500 mt-2">
-        <span>Performance normalized to 100 at start.</span>
+
+      <div
+        className="flex flex-wrap items-center justify-center mono"
+        style={{
+          gap: 14,
+          marginTop: 10,
+          fontSize: 9,
+          color: 'var(--text-mute)',
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+        }}
+      >
+        <span>Normalized to 100 at start</span>
         {hasSimulatedData && (
-          <span className="flex items-center gap-1">
-            <span className="w-6 h-0 border-t-2 border-dashed border-slate-400"></span>
-            Dotted = projected (before portfolio creation)
+          <span className="flex items-center" style={{ gap: 5 }}>
+            <span
+              style={{
+                width: 22,
+                height: 0,
+                borderTop: '2px dashed var(--text-mute)',
+              }}
+            />
+            Dotted = projected before squad creation
           </span>
         )}
-        <span className="flex items-center gap-1">
-          <svg width="24" height="2" className="inline-block">
-            <line x1="0" y1="1" x2="24" y2="1" stroke="#94a3b8" strokeWidth="2" strokeDasharray="8 4" />
+        <span className="flex items-center" style={{ gap: 5 }}>
+          <svg width="22" height="2">
+            <line x1="0" y1="1" x2="22" y2="1" stroke="var(--text-mute)" strokeWidth="2" strokeDasharray="8 4" />
           </svg>
           Long dash = benchmarks
         </span>

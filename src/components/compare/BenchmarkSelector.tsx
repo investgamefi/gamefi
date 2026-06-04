@@ -3,8 +3,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { BenchmarkSymbol, BenchmarkInfo, BENCHMARKS } from '@/types';
-import { cn } from '@/lib/utils';
-import { useTheme } from '@/components/ThemeProvider';
 
 interface BenchmarkSelectorProps {
   selectedBenchmarks: BenchmarkSymbol[];
@@ -17,25 +15,24 @@ export const BenchmarkSelector: React.FC<BenchmarkSelectorProps> = ({
   onToggle,
   maxSelections = 3,
 }) => {
-  const { resolvedTheme } = useTheme();
   const isSelected = (symbol: BenchmarkSymbol) => selectedBenchmarks.includes(symbol);
   const canSelect = selectedBenchmarks.length < maxSelections;
 
   return (
-    <div className={cn(
-      'rounded-xl p-4 border',
-      resolvedTheme === 'dark'
-        ? 'bg-slate-900/50 border-slate-800'
-        : 'bg-white border-slate-200 shadow-sm'
-    )}>
-      <div className="flex items-center justify-between mb-3">
-        <h3 className={cn('text-sm font-medium', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>Compare with Benchmarks</h3>
-        <span className="text-xs text-slate-500">
-          {selectedBenchmarks.length}/{maxSelections} selected
+    <div className="stadium-card" style={{ padding: 14 }}>
+      <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
+        <div>
+          <div className="kicker">BENCHMARKS</div>
+          <div className="display" style={{ fontSize: 14, letterSpacing: '-0.01em', marginTop: 1 }}>
+            Compare against indices
+          </div>
+        </div>
+        <span className="mono num" style={{ fontSize: 11, color: 'var(--text-mute)', letterSpacing: '0.04em' }}>
+          {selectedBenchmarks.length} / {maxSelections}
         </span>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap" style={{ gap: 6 }}>
         {BENCHMARKS.map((benchmark: BenchmarkInfo) => {
           const selected = isSelected(benchmark.symbol);
           const disabled = !selected && !canSelect;
@@ -43,54 +40,63 @@ export const BenchmarkSelector: React.FC<BenchmarkSelectorProps> = ({
           return (
             <motion.button
               key={benchmark.symbol}
+              type="button"
               onClick={() => !disabled && onToggle(benchmark.symbol)}
-              whileHover={!disabled ? { scale: 1.02 } : undefined}
-              whileTap={!disabled ? { scale: 0.98 } : undefined}
-              className={cn(
-                'relative px-3 py-2 rounded-lg text-sm font-medium transition-all',
-                'border flex items-center gap-2',
-                selected
-                  ? resolvedTheme === 'dark'
-                    ? 'bg-slate-800 border-slate-600 text-white'
-                    : 'bg-slate-100 border-slate-300 text-slate-900'
-                  : disabled
-                    ? resolvedTheme === 'dark'
-                      ? 'bg-slate-900/50 border-slate-800 text-slate-600 cursor-not-allowed'
-                      : 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
-                    : resolvedTheme === 'dark'
-                      ? 'bg-slate-900/50 border-slate-700 text-slate-400 hover:border-slate-600 hover:text-slate-300'
-                      : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900'
-              )}
+              whileTap={!disabled ? { scale: 0.97 } : undefined}
               disabled={disabled}
               title={benchmark.description}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '6px 10px',
+                background: selected
+                  ? 'var(--pitch-tint)'
+                  : disabled
+                  ? 'var(--surface-2)'
+                  : 'var(--surface)',
+                border:
+                  '1px solid ' +
+                  (selected
+                    ? 'var(--pitch)'
+                    : disabled
+                    ? 'var(--line)'
+                    : 'var(--line)'),
+                borderRadius: 6,
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                color: selected ? 'var(--text)' : disabled ? 'var(--text-mute)' : 'var(--text-dim)',
+                opacity: disabled ? 0.5 : 1,
+                fontFamily: 'var(--font-display)',
+                fontSize: 12,
+                fontWeight: 600,
+                letterSpacing: '0.01em',
+                transition: 'background .12s, border-color .12s',
+              }}
             >
-              {/* Color indicator */}
               <span
-                className={cn(
-                  'w-2 h-2 rounded-full',
-                  selected ? 'opacity-100' : 'opacity-50'
-                )}
-                style={{ backgroundColor: benchmark.color }}
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: benchmark.color,
+                  opacity: selected ? 1 : 0.6,
+                }}
               />
-
-              <span>{benchmark.name}</span>
-
-              {/* Checkmark for selected */}
+              {benchmark.name}
               {selected && (
                 <motion.svg
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
-                  className="w-4 h-4 text-emerald-400"
-                  fill="none"
-                  stroke="currentColor"
+                  width="12"
+                  height="12"
                   viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--pitch)"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 13l4 4L19 7"
-                  />
+                  <path d="M5 13l4 4L19 7" />
                 </motion.svg>
               )}
             </motion.button>
@@ -99,19 +105,43 @@ export const BenchmarkSelector: React.FC<BenchmarkSelectorProps> = ({
       </div>
 
       {selectedBenchmarks.length > 0 && (
-        <div className={cn('mt-3 pt-3 border-t', resolvedTheme === 'dark' ? 'border-slate-800' : 'border-slate-200')}>
-          <div className="flex flex-wrap gap-1">
+        <div
+          style={{
+            marginTop: 10,
+            paddingTop: 10,
+            borderTop: '1px solid var(--line)',
+          }}
+        >
+          <div className="kicker" style={{ marginBottom: 6 }}>ACTIVE</div>
+          <div className="flex flex-wrap" style={{ gap: 4 }}>
             {selectedBenchmarks.map((symbol) => {
               const benchmark = BENCHMARKS.find((b) => b.symbol === symbol);
               return benchmark ? (
                 <span
                   key={symbol}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full"
+                  className="mono num"
                   style={{
-                    backgroundColor: `${benchmark.color}20`,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '2px 8px',
+                    background: `${benchmark.color}20`,
+                    border: `1px solid ${benchmark.color}50`,
                     color: benchmark.color,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    borderRadius: 3,
+                    letterSpacing: '0.04em',
                   }}
                 >
+                  <span
+                    style={{
+                      width: 5,
+                      height: 5,
+                      borderRadius: '50%',
+                      background: benchmark.color,
+                    }}
+                  />
                   {benchmark.symbol}
                 </span>
               ) : null;

@@ -1,8 +1,6 @@
 'use client';
 
 import React from 'react';
-import { cn } from '@/lib/utils';
-import { useTheme } from '@/components/ThemeProvider';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -17,54 +15,99 @@ export const Input: React.FC<InputProps> = ({
   leftIcon,
   rightIcon,
   className,
+  style,
   ...props
 }) => {
-  const { resolvedTheme } = useTheme();
-
   return (
-    <div className="w-full">
+    <div style={{ width: '100%' }}>
       {label && (
-        <label className={cn(
-          'block text-sm font-medium mb-1.5',
-          resolvedTheme === 'dark' ? 'text-slate-300' : 'text-slate-700'
-        )}>
+        <label
+          className="kicker"
+          style={{
+            display: 'block',
+            marginBottom: 6,
+            color: 'var(--text-dim)',
+          }}
+        >
           {label}
         </label>
       )}
-      <div className="relative">
+      <div style={{ position: 'relative' }}>
         {leftIcon && (
-          <div className={cn(
-            'absolute left-3 top-1/2 -translate-y-1/2',
-            resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'
-          )}>
+          <div
+            style={{
+              position: 'absolute',
+              left: 10,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--text-mute)',
+              display: 'flex',
+              alignItems: 'center',
+              pointerEvents: 'none',
+            }}
+          >
             {leftIcon}
           </div>
         )}
         <input
-          className={cn(
-            'w-full rounded-lg px-4 py-2.5',
-            'focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent',
-            'transition-all duration-200',
-            resolvedTheme === 'dark'
-              ? 'bg-slate-800 border border-slate-700 text-white placeholder-slate-500'
-              : 'bg-white border border-slate-300 text-slate-900 placeholder-slate-400',
-            leftIcon ? 'pl-10' : '',
-            rightIcon ? 'pr-10' : '',
-            error ? 'border-red-500 focus:ring-red-500' : '',
-            className
-          )}
+          className={className}
+          style={{
+            width: '100%',
+            padding: '10px 14px',
+            paddingLeft: leftIcon ? 32 : 14,
+            paddingRight: rightIcon ? 32 : 14,
+            background: 'var(--surface-2)',
+            border: '1px solid ' + (error ? 'var(--ref-red)' : 'var(--line)'),
+            borderRadius: 8,
+            color: 'var(--text)',
+            fontFamily: 'var(--font-body)',
+            fontSize: 13,
+            transition: 'border-color .15s ease, background .15s ease',
+            outline: 'none',
+            ...style,
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.borderColor = error ? 'var(--ref-red)' : 'var(--pitch)';
+            e.currentTarget.style.background = 'var(--surface)';
+            props.onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.borderColor = error ? 'var(--ref-red)' : 'var(--line)';
+            e.currentTarget.style.background = 'var(--surface-2)';
+            props.onBlur?.(e);
+          }}
           {...props}
         />
         {rightIcon && (
-          <div className={cn(
-            'absolute right-3 top-1/2 -translate-y-1/2',
-            resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'
-          )}>
+          <div
+            style={{
+              position: 'absolute',
+              right: 10,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--text-mute)',
+              display: 'flex',
+              alignItems: 'center',
+              pointerEvents: 'none',
+            }}
+          >
             {rightIcon}
           </div>
         )}
       </div>
-      {error && <p className="mt-1.5 text-sm text-red-500">{error}</p>}
+      {error && (
+        <p
+          className="mono"
+          style={{
+            marginTop: 6,
+            fontSize: 11,
+            color: 'var(--ref-red)',
+            letterSpacing: '0.02em',
+          }}
+        >
+          {error}
+        </p>
+      )}
     </div>
   );
 };

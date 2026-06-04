@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Button, Input } from '@/components/ui';
+import { Icon } from '@/components/stadium/Icon';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -23,22 +24,16 @@ export default function ForgotPasswordPage() {
     }
 
     setIsLoading(true);
-
     try {
       const response = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim() }),
       });
-
       const result = await response.json();
-
       if (result.success) {
         setSuccess(true);
-        // For demo purposes, show the token
-        if (result.demo_token) {
-          setDemoToken(result.demo_token);
-        }
+        if (result.demo_token) setDemoToken(result.demo_token);
       } else {
         setError(result.error || 'Failed to send reset email');
       }
@@ -50,118 +45,228 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
-      {/* Background Effects */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl" />
-      </div>
+    <div
+      className="stadium-root"
+      data-theme="dark"
+      style={{
+        minHeight: '100vh',
+        background: 'var(--bg)',
+        color: 'var(--text)',
+        position: 'relative',
+        overflow: 'hidden',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundImage:
+            'linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px)',
+          backgroundSize: '64px 64px',
+          opacity: 0.35,
+          maskImage: 'radial-gradient(ellipse at center, #000 30%, transparent 70%)',
+          WebkitMaskImage: 'radial-gradient(ellipse at center, #000 30%, transparent 70%)',
+          pointerEvents: 'none',
+        }}
+      />
 
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="relative w-full max-w-md"
+        style={{ position: 'relative', width: '100%', maxWidth: 420 }}
       >
-        {/* Logo and Title */}
-        <div className="text-center mb-8">
-          <Link href="/">
-            <motion.div
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              transition={{ type: 'spring', duration: 0.6 }}
-              className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center shadow-2xl shadow-emerald-500/30"
+        {/* Logo + title */}
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <Link
+            href="/"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 10,
+              textDecoration: 'none',
+              marginBottom: 18,
+            }}
+          >
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 8,
+                background: 'var(--text)',
+                color: 'var(--bg)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
             >
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </motion.div>
+              <Icon.Logo size={28} />
+            </div>
+            <div style={{ textAlign: 'left' }}>
+              <div className="display" style={{ fontSize: 18, letterSpacing: '-0.03em', color: 'var(--text)' }}>
+                GAMEFI
+              </div>
+              <div className="kicker" style={{ fontSize: 9, marginTop: -2 }}>
+                INVEST · LEAGUE
+              </div>
+            </div>
           </Link>
-          <h1 className="text-3xl font-bold text-white mb-2">Forgot Password?</h1>
-          <p className="text-slate-400">No worries, we&apos;ll send you reset instructions.</p>
+          <div className="kicker" style={{ marginBottom: 4 }}>LOST YOUR KEYS?</div>
+          <h1
+            className="display"
+            style={{
+              fontSize: 28,
+              letterSpacing: '-0.04em',
+              margin: 0,
+              color: 'var(--text)',
+            }}
+          >
+            Forgot password
+          </h1>
+          <p style={{ color: 'var(--text-dim)', fontSize: 13, marginTop: 8 }}>
+            No worries — we&apos;ll send reset instructions to the email on file.
+          </p>
         </div>
 
         {/* Card */}
-        <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-8 shadow-2xl">
+        <div
+          className="stadium-card"
+          style={{ padding: 24, background: 'var(--surface)' }}
+        >
           {success ? (
-            <div className="text-center">
-              <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
+            <div style={{ textAlign: 'center' }}>
+              <div
+                style={{
+                  width: 56,
+                  height: 56,
+                  margin: '0 auto 14px',
+                  borderRadius: 10,
+                  background: 'var(--pitch-tint)',
+                  border: '1px solid oklch(0.72 0.21 145 / 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Icon.Bell size={26} style={{ color: 'var(--pitch)' }} />
               </div>
-              <h2 className="text-xl font-semibold text-white mb-2">Check your email</h2>
-              <p className="text-slate-400 text-sm mb-4">
-                If an account with that email exists, we&apos;ve sent password reset instructions.
+              <div className="display" style={{ fontSize: 18, letterSpacing: '-0.02em', marginBottom: 6 }}>
+                Check your email
+              </div>
+              <p style={{ color: 'var(--text-dim)', fontSize: 13, lineHeight: 1.55, margin: 0 }}>
+                If an account exists for that email, we&apos;ve sent reset instructions.
               </p>
 
-              {/* Demo token display */}
               {demoToken && (
-                <div className="mt-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg text-left">
-                  <p className="text-amber-400 text-sm font-medium mb-2">Demo Mode</p>
-                  <p className="text-slate-300 text-xs mb-2">
-                    In production, this link would be sent to your email. For demo purposes:
+                <div
+                  className="stadium-card"
+                  style={{
+                    padding: 14,
+                    marginTop: 18,
+                    background: 'oklch(0.83 0.18 90 / 0.08)',
+                    borderColor: 'oklch(0.83 0.18 90 / 0.4)',
+                    textAlign: 'left',
+                  }}
+                >
+                  <div className="kicker" style={{ color: 'var(--whistle)', marginBottom: 6 }}>
+                    DEMO MODE
+                  </div>
+                  <p style={{ color: 'var(--text-dim)', fontSize: 12, margin: 0, marginBottom: 10, lineHeight: 1.55 }}>
+                    In production the link would land in your inbox. For this demo:
                   </p>
                   <Link
                     href={`/reset-password?token=${demoToken}`}
-                    className="text-emerald-400 hover:text-emerald-300 text-sm break-all underline"
+                    className="mono"
+                    style={{
+                      color: 'var(--pitch)',
+                      fontSize: 11,
+                      textDecoration: 'underline',
+                      wordBreak: 'break-all',
+                      letterSpacing: '0.02em',
+                    }}
                   >
-                    Click here to reset your password
+                    Click here to reset your password →
                   </Link>
                 </div>
               )}
 
-              <Link
-                href="/"
-                className="inline-flex items-center text-emerald-400 hover:text-emerald-300 mt-6"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                Back to login
-              </Link>
+              <div style={{ marginTop: 22 }}>
+                <Link
+                  href="/"
+                  className="mono"
+                  style={{
+                    color: 'var(--pitch)',
+                    fontSize: 11,
+                    textDecoration: 'none',
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <Icon.Arrow size={12} style={{ transform: 'rotate(180deg)' }} /> BACK TO LOGIN
+                </Link>
+              </div>
             </div>
           ) : (
             <>
               {error && (
-                <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-                  <p className="text-sm text-red-400">{error}</p>
+                <div
+                  className="stadium-card"
+                  style={{
+                    padding: '10px 12px',
+                    marginBottom: 16,
+                    background: 'oklch(0.65 0.22 25 / 0.08)',
+                    borderColor: 'oklch(0.65 0.22 25 / 0.3)',
+                  }}
+                >
+                  <p
+                    className="mono"
+                    style={{ fontSize: 11, color: 'var(--ref-red)', margin: 0, letterSpacing: '0.02em' }}
+                  >
+                    {error}
+                  </p>
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form
+                onSubmit={handleSubmit}
+                style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+              >
                 <Input
-                  label="Email"
                   type="email"
-                  placeholder="Enter your email address"
+                  label="Email"
+                  placeholder="you@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  leftIcon={
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                  }
+                  leftIcon={<Icon.Bell size={14} />}
                 />
-
-                <Button
-                  type="submit"
-                  className="w-full"
-                  size="lg"
-                  isLoading={isLoading}
-                >
-                  {isLoading ? 'Sending...' : 'Send Reset Link'}
+                <Button type="submit" isLoading={isLoading} style={{ width: '100%', justifyContent: 'center' }}>
+                  {isLoading ? 'Sending…' : 'Send reset link'}
                 </Button>
               </form>
 
-              <div className="mt-6 text-center">
+              <div style={{ marginTop: 18, textAlign: 'center' }}>
                 <Link
                   href="/"
-                  className="inline-flex items-center text-slate-400 hover:text-slate-300 text-sm"
+                  className="mono"
+                  style={{
+                    color: 'var(--text-dim)',
+                    fontSize: 11,
+                    textDecoration: 'none',
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
                 >
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                  </svg>
-                  Back to login
+                  <Icon.Arrow size={12} style={{ transform: 'rotate(180deg)' }} /> BACK TO LOGIN
                 </Link>
               </div>
             </>

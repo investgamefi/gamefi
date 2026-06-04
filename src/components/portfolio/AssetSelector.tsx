@@ -4,20 +4,16 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Asset, Position, POSITION_RISK_MAP, RiskLevel, getAssetRiskLevel } from '@/types';
 import { MOCK_ASSETS, SECTORS, addExternalAsset } from '@/data/assets';
-import { cn, formatCurrency, formatPercent, formatNumber } from '@/lib/utils';
-import { Input, Button, Modal } from '@/components/ui';
+import { formatCurrency, formatPercent } from '@/lib/utils';
+import { Input, Modal } from '@/components/ui';
 import { useAssetSearch } from '@/hooks/useAssetSearch';
+import { Icon } from '@/components/stadium/Icon';
 
-const RISK_COLORS: Record<RiskLevel, { bg: string; text: string; badge: string }> = {
-  low: { bg: 'bg-blue-500/10', text: 'text-blue-400', badge: 'bg-blue-500' },
-  medium: { bg: 'bg-yellow-500/10', text: 'text-yellow-400', badge: 'bg-yellow-500' },
-  high: { bg: 'bg-red-500/10', text: 'text-red-400', badge: 'bg-red-500' },
-};
-
-const RISK_LABELS: Record<RiskLevel, string> = {
-  low: 'Low Risk',
-  medium: 'Medium Risk',
-  high: 'High Risk',
+/* Map portfolio risk tier → stadium DEF/MID/ATK colour vocabulary. */
+const RISK_CONFIG: Record<RiskLevel, { code: 'DEF' | 'MID' | 'ATK'; pillClass: string; color: string; label: string }> = {
+  low:    { code: 'DEF', pillClass: 'pill pill-sky',     color: 'oklch(0.75 0.14 230)', label: 'Defender · low volatility' },
+  medium: { code: 'MID', pillClass: 'pill pill-whistle', color: 'oklch(0.83 0.18 90)',  label: 'Midfielder · balanced'      },
+  high:   { code: 'ATK', pillClass: 'pill pill-red',     color: 'oklch(0.65 0.22 25)',  label: 'Attacker · high volatility' },
 };
 
 interface AssetSelectorProps {
@@ -39,32 +35,20 @@ export const AssetSelector: React.FC<AssetSelectorProps> = ({
   const [selectedType, setSelectedType] = useState<string>('All');
   const [showSuggestedOnly, setShowSuggestedOnly] = useState(false);
 
-  // Use the async search hook
   const { results: searchResults, isLoading, error, searchTerm, setSearchTerm } = useAssetSearch('');
 
-  // Get the risk level for the current position
   const positionRiskLevel = position ? POSITION_RISK_MAP[position.row] : null;
 
-  // Determine which assets to show
   const filteredAssets = useMemo(() => {
-    // If there's a search term, use search results (which may include Yahoo Finance results)
-    // Otherwise, use the full MOCK_ASSETS list
     let assets = searchTerm.trim() ? searchResults : MOCK_ASSETS;
 
-    if (selectedSector !== 'All') {
-      assets = assets.filter((a) => a.sector === selectedSector);
-    }
+    if (selectedSector !== 'All') assets = assets.filter((a) => a.sector === selectedSector);
+    if (selectedType !== 'All') assets = assets.filter((a) => a.type === selectedType);
 
-    if (selectedType !== 'All') {
-      assets = assets.filter((a) => a.type === selectedType);
-    }
-
-    // Filter by matching risk level if showSuggestedOnly is enabled
     if (showSuggestedOnly && positionRiskLevel) {
       assets = assets.filter((a) => getAssetRiskLevel(a.beta) === positionRiskLevel);
     }
 
-    // Sort assets: matching risk level first, then by day change
     if (positionRiskLevel) {
       assets = [...assets].sort((a, b) => {
         const aMatches = getAssetRiskLevel(a.beta) === positionRiskLevel;
@@ -79,11 +63,8 @@ export const AssetSelector: React.FC<AssetSelectorProps> = ({
   }, [searchTerm, searchResults, selectedSector, selectedType, showSuggestedOnly, positionRiskLevel]);
 
   const handleSelect = (asset: Asset) => {
-    // If this asset came from Yahoo Finance (not in MOCK_ASSETS), save it to external assets
     const isExternal = !MOCK_ASSETS.some((a) => a.id === asset.id);
-    if (isExternal) {
-      addExternalAsset(asset);
-    }
+    if (isExternal) addExternalAsset(asset);
 
     onSelect(asset);
     onClose();
@@ -98,234 +79,402 @@ export const AssetSelector: React.FC<AssetSelectorProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Select Asset for ${position?.name || 'Position'}`} size="lg">
-      <div className="space-y-4">
-        {/* Current Selection */}
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={`Sign player to ${position?.name || 'position'}`}
+      subtitle={`TRANSFER MARKET · ${position?.shortName?.toUpperCase() || ''}`}
+      size="lg"
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* Current selection */}
         {currentAsset && (
-          <div className="flex items-center justify-between p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-emerald-500/20 rounded-lg flex items-center justify-center">
-                <span className="font-bold text-emerald-400">{currentAsset.symbol.charAt(0)}</span>
+          <div
+            className="stadium-card flex items-center justify-between"
+            style={{
+              padding: '12px 14px',
+              background: 'var(--pitch-tint)',
+              borderColor: 'oklch(0.72 0.21 145 / 0.3)',
+            }}
+          >
+            <div className="flex items-center" style={{ gap: 12 }}>
+              <div
+                className="display num"
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 4,
+                  background: 'var(--surface)',
+                  border: '1px solid var(--line)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 11,
+                  color: 'var(--pitch)',
+                  flexShrink: 0,
+                }}
+              >
+                {currentAsset.symbol.slice(0, 4)}
               </div>
-              <div>
-                <p className="font-medium text-white">{currentAsset.symbol}</p>
-                <p className="text-sm text-slate-400">{currentAsset.name}</p>
+              <div style={{ minWidth: 0 }}>
+                <div className="display num" style={{ fontSize: 14, letterSpacing: '-0.02em' }}>
+                  {currentAsset.symbol}
+                </div>
+                <div
+                  className="mono"
+                  style={{
+                    fontSize: 10,
+                    color: 'var(--text-mute)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  CURRENTLY SIGNED · {currentAsset.name}
+                </div>
               </div>
-            </div>
-            <Button variant="danger" size="sm" onClick={handleRemove}>
-              Remove
-            </Button>
-          </div>
-        )}
-
-        {/* Position Risk Info */}
-        {positionRiskLevel && (
-          <div className={cn(
-            'flex items-center justify-between p-3 rounded-lg border',
-            RISK_COLORS[positionRiskLevel].bg,
-            positionRiskLevel === 'low' ? 'border-blue-500/30' : positionRiskLevel === 'medium' ? 'border-yellow-500/30' : 'border-red-500/30'
-          )}>
-            <div className="flex items-center gap-2">
-              <div className={cn('w-3 h-3 rounded-full', RISK_COLORS[positionRiskLevel].badge)} />
-              <span className="text-slate-300 text-sm">
-                This position suggests <span className={cn('font-medium', RISK_COLORS[positionRiskLevel].text)}>{RISK_LABELS[positionRiskLevel]}</span> assets
-              </span>
             </div>
             <button
-              onClick={() => setShowSuggestedOnly(!showSuggestedOnly)}
-              className={cn(
-                'px-3 py-1 rounded-lg text-sm font-medium transition-colors',
-                showSuggestedOnly
-                  ? 'bg-emerald-500 text-white'
-                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-              )}
+              type="button"
+              onClick={handleRemove}
+              className="stadium-btn"
+              style={{
+                padding: '6px 12px',
+                fontSize: 11,
+                background: 'var(--ref-red)',
+                color: '#fff',
+                border: '1px solid var(--ref-red)',
+              }}
             >
-              {showSuggestedOnly ? 'Showing Suggested' : 'Show All'}
+              Release
             </button>
           </div>
         )}
 
-        {/* Search and Filters */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-1">
+        {/* Position risk recommendation */}
+        {positionRiskLevel && (
+          <div
+            className="stadium-card flex items-center justify-between"
+            style={{
+              padding: '10px 14px',
+              background: 'var(--surface-2)',
+            }}
+          >
+            <div className="flex items-center" style={{ gap: 10 }}>
+              <span
+                className={RISK_CONFIG[positionRiskLevel].pillClass}
+                style={{ padding: '3px 8px' }}
+              >
+                {RISK_CONFIG[positionRiskLevel].code}
+              </span>
+              <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                {RISK_CONFIG[positionRiskLevel].label}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowSuggestedOnly(!showSuggestedOnly)}
+              className="mono"
+              style={{
+                padding: '5px 10px',
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                background: showSuggestedOnly ? 'var(--pitch)' : 'transparent',
+                color: showSuggestedOnly ? 'oklch(0.14 0.05 145)' : 'var(--text-dim)',
+                border: '1px solid ' + (showSuggestedOnly ? 'var(--pitch-deep)' : 'var(--line)'),
+                borderRadius: 4,
+                cursor: 'pointer',
+              }}
+            >
+              {showSuggestedOnly ? 'Showing suggested' : 'Show all'}
+            </button>
+          </div>
+        )}
+
+        {/* Filters */}
+        <div
+          className="flex flex-wrap"
+          style={{ gap: 8, alignItems: 'center' }}
+        >
+          <div style={{ flex: 1, minWidth: 220 }}>
             <Input
-              placeholder="Search by name, symbol, or sector..."
+              placeholder="Scout a ticker (e.g. NVDA, COIN)…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               leftIcon={
                 isLoading ? (
-                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: 12,
+                      height: 12,
+                      border: '2px solid var(--line)',
+                      borderTopColor: 'var(--pitch)',
+                      borderRadius: '50%',
+                      animation: 'stadium-spin 0.9s linear infinite',
+                    }}
+                  />
                 ) : (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
+                  <Icon.Search size={14} />
                 )
               }
             />
           </div>
-          <select
+          <StadiumSelect
             value={selectedSector}
-            onChange={(e) => setSelectedSector(e.target.value)}
-            className="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          >
-            <option value="All">All Sectors</option>
-            {SECTORS.map((sector) => (
-              <option key={sector} value={sector}>
-                {sector}
-              </option>
-            ))}
-          </select>
-          <select
+            onChange={setSelectedSector}
+            options={[
+              { value: 'All', label: 'All sectors' },
+              ...SECTORS.map((s) => ({ value: s, label: s })),
+            ]}
+          />
+          <StadiumSelect
             value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value)}
-            className="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          >
-            <option value="All">All Types</option>
-            <option value="stock">Stocks</option>
-            <option value="etf">ETFs</option>
-            <option value="bond">Bonds</option>
-            <option value="reit">REITs</option>
-            <option value="commodity">Commodities</option>
-          </select>
+            onChange={setSelectedType}
+            options={[
+              { value: 'All', label: 'All types' },
+              { value: 'stock', label: 'Stocks' },
+              { value: 'etf', label: 'ETFs' },
+              { value: 'bond', label: 'Bonds' },
+              { value: 'reit', label: 'REITs' },
+              { value: 'commodity', label: 'Commodities' },
+            ]}
+          />
         </div>
 
-        {/* Error Message */}
+        {/* Error */}
         {error && (
-          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-            <p className="text-sm text-red-400">{error}</p>
-          </div>
-        )}
-
-        {/* Search Hint */}
-        {searchTerm.trim() && filteredAssets.length === 0 && !isLoading && !error && (
-          <div className="p-3 bg-slate-800/50 border border-slate-700 rounded-lg">
-            <p className="text-sm text-slate-400">
-              No local matches found. Try a valid stock ticker (e.g., PLTR, TSLA) to search Yahoo Finance.
+          <div
+            className="stadium-card"
+            style={{
+              padding: '10px 12px',
+              background: 'oklch(0.65 0.22 25 / 0.08)',
+              borderColor: 'oklch(0.65 0.22 25 / 0.3)',
+            }}
+          >
+            <p
+              className="mono"
+              style={{ margin: 0, fontSize: 11, color: 'var(--ref-red)', letterSpacing: '0.02em' }}
+            >
+              {error}
             </p>
           </div>
         )}
 
-        {/* Asset List */}
-        <div className="max-h-[400px] overflow-y-auto space-y-2">
-          {/* Loading State */}
+        {/* Search hint */}
+        {searchTerm.trim() && filteredAssets.length === 0 && !isLoading && !error && (
+          <div
+            className="stadium-card"
+            style={{ padding: '10px 12px', borderStyle: 'dashed' }}
+          >
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-dim)' }}>
+              No local matches. Try a valid stock ticker (PLTR, TSLA) to search Yahoo Finance.
+            </p>
+          </div>
+        )}
+
+        {/* Asset list */}
+        <div
+          style={{
+            maxHeight: 420,
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+            paddingRight: 4,
+          }}
+        >
           {isLoading && searchTerm.trim() && (
-            <div className="py-8 text-center">
-              <div className="w-8 h-8 mx-auto mb-3 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
-              <p className="text-slate-400 text-sm">Searching for &ldquo;{searchTerm}&rdquo;...</p>
+            <div style={{ padding: 32, textAlign: 'center' }}>
+              <div className="stadium-spinner" style={{ width: 28, height: 28, margin: '0 auto 10px' }} />
+              <div className="kicker">SEARCHING FOR “{searchTerm}”…</div>
             </div>
           )}
 
           <AnimatePresence mode="popLayout">
-            {!isLoading && filteredAssets.map((asset) => {
-              const assetRiskLevel = getAssetRiskLevel(asset.beta);
-              const isMatchingRisk = positionRiskLevel && assetRiskLevel === positionRiskLevel;
-              const riskColors = RISK_COLORS[assetRiskLevel];
-              const isExternal = !MOCK_ASSETS.some((a) => a.id === asset.id);
+            {!isLoading &&
+              filteredAssets.map((asset) => {
+                const assetRiskLevel = getAssetRiskLevel(asset.beta);
+                const isMatchingRisk = positionRiskLevel && assetRiskLevel === positionRiskLevel;
+                const riskCfg = RISK_CONFIG[assetRiskLevel];
+                const isExternal = !MOCK_ASSETS.some((a) => a.id === asset.id);
+                const isSelected = currentAsset?.id === asset.id;
+                const up = asset.dayChangePercent >= 0;
 
-              return (
-                <motion.button
-                  key={asset.id}
-                  layout
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  onClick={() => handleSelect(asset)}
-                  className={cn(
-                    'w-full flex items-center gap-4 p-4 rounded-lg transition-all duration-200',
-                    'bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-emerald-500/50',
-                    currentAsset?.id === asset.id && 'ring-2 ring-emerald-500 bg-emerald-500/10',
-                    isMatchingRisk && 'border-emerald-500/30 bg-emerald-500/5'
-                  )}
-                >
-                  {/* Symbol Badge */}
-                  <div className="w-12 h-12 bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg flex items-center justify-center flex-shrink-0 relative">
-                    <span className="font-bold text-white">{asset.symbol.slice(0, 2)}</span>
-                    {/* Risk Level Indicator */}
-                    <div className={cn(
-                      'absolute -top-1 -right-1 w-3 h-3 rounded-full',
-                      riskColors.badge
-                    )} title={RISK_LABELS[assetRiskLevel]} />
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1 text-left min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-white">{asset.symbol}</span>
-                      <span className="px-2 py-0.5 bg-slate-700 rounded text-xs text-slate-400 uppercase">
-                        {asset.type}
-                      </span>
-                      <span className={cn(
-                        'px-2 py-0.5 rounded text-xs font-medium',
-                        riskColors.bg,
-                        riskColors.text
-                      )}>
-                        {assetRiskLevel === 'low' ? 'Low' : assetRiskLevel === 'medium' ? 'Med' : 'High'}
-                      </span>
-                      {isMatchingRisk && (
-                        <span className="px-2 py-0.5 bg-emerald-500/20 rounded text-xs font-medium text-emerald-400">
-                          Suggested
-                        </span>
-                      )}
-                      {isExternal && (
-                        <span className="px-2 py-0.5 bg-purple-500/20 rounded text-xs font-medium text-purple-400">
-                          Yahoo
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-slate-400 truncate">{asset.name}</p>
-                    <p className="text-xs text-slate-500">{asset.sector}</p>
-                  </div>
-
-                  {/* Price & Change */}
-                  <div className="text-right flex-shrink-0">
-                    <p className="font-medium text-white">{formatCurrency(asset.currentPrice)}</p>
-                    <p
-                      className={cn(
-                        'text-sm font-medium',
-                        asset.dayChangePercent >= 0 ? 'text-emerald-400' : 'text-red-400'
-                      )}
+                return (
+                  <motion.button
+                    key={asset.id}
+                    layout
+                    type="button"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    onClick={() => handleSelect(asset)}
+                    style={{
+                      width: '100%',
+                      display: 'grid',
+                      gridTemplateColumns: '40px minmax(0, 1fr) auto auto',
+                      gap: 12,
+                      padding: '10px 12px',
+                      background: isSelected
+                        ? 'var(--pitch-tint)'
+                        : isMatchingRisk
+                        ? 'var(--surface-2)'
+                        : 'var(--surface)',
+                      border: '1px solid ' + (isSelected ? 'var(--pitch)' : 'var(--line)'),
+                      borderRadius: 8,
+                      cursor: 'pointer',
+                      alignItems: 'center',
+                      transition: 'background .12s, border-color .12s, transform .12s',
+                      color: 'inherit',
+                      textAlign: 'left',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) e.currentTarget.style.borderColor = 'var(--pitch)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) e.currentTarget.style.borderColor = 'var(--line)';
+                    }}
+                  >
+                    {/* Symbol tile */}
+                    <div
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 4,
+                        background: 'var(--surface-2)',
+                        border: '1px solid var(--line)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontFamily: 'var(--font-display)',
+                        fontWeight: 700,
+                        fontSize: 11,
+                        color: 'var(--pitch)',
+                        letterSpacing: '-0.02em',
+                        position: 'relative',
+                      }}
                     >
-                      {formatPercent(asset.dayChangePercent)}
-                    </p>
-                  </div>
+                      {asset.symbol.slice(0, 4)}
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: -3,
+                          right: -3,
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          background: riskCfg.color,
+                          border: '1px solid var(--surface)',
+                        }}
+                        title={riskCfg.label}
+                      />
+                    </div>
 
-                  {/* Stats */}
-                  <div className="hidden sm:flex flex-col gap-1 text-right min-w-[100px]">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-slate-500">P/E:</span>
-                      <span className="text-slate-300">{asset.peRatio !== null ? asset.peRatio.toFixed(1) : 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-slate-500">Beta:</span>
-                      <span className={riskColors.text}>{asset.beta.toFixed(2)}</span>
-                    </div>
-                    {asset.eps !== undefined && asset.eps !== null && (
-                      <div className="flex justify-between text-xs">
-                        <span className="text-slate-500">EPS:</span>
-                        <span className="text-slate-300">${asset.eps.toFixed(2)}</span>
+                    {/* Info */}
+                    <div style={{ minWidth: 0 }}>
+                      <div className="flex items-center flex-wrap" style={{ gap: 5 }}>
+                        <span
+                          className="display num"
+                          style={{ fontSize: 13, letterSpacing: '-0.02em' }}
+                        >
+                          {asset.symbol}
+                        </span>
+                        <span className={riskCfg.pillClass} style={{ padding: '1px 5px', fontSize: 9 }}>
+                          {riskCfg.code}
+                        </span>
+                        <span className="pill" style={{ padding: '1px 5px', fontSize: 9 }}>
+                          {asset.type.toUpperCase()}
+                        </span>
+                        {isMatchingRisk && (
+                          <span className="pill pill-pitch" style={{ padding: '1px 5px', fontSize: 9 }}>
+                            SUGGESTED
+                          </span>
+                        )}
+                        {isExternal && (
+                          <span className="pill pill-sky" style={{ padding: '1px 5px', fontSize: 9 }}>
+                            YAHOO
+                          </span>
+                        )}
                       </div>
-                    )}
-                    {asset.dividendYield > 0 && (
-                      <div className="flex justify-between text-xs">
-                        <span className="text-slate-500">Div:</span>
-                        <span className="text-emerald-400">{asset.dividendYield.toFixed(2)}%</span>
+                      <div
+                        className="mono"
+                        style={{
+                          fontSize: 10,
+                          color: 'var(--text-mute)',
+                          marginTop: 2,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          letterSpacing: '0.04em',
+                        }}
+                      >
+                        {asset.name.toUpperCase()} · {asset.sector.toUpperCase()}
                       </div>
-                    )}
-                  </div>
-                </motion.button>
-              );
-            })}
+                    </div>
+
+                    {/* Price + change */}
+                    <div style={{ textAlign: 'right' }}>
+                      <div className="mono num" style={{ fontSize: 12, color: 'var(--text)' }}>
+                        {formatCurrency(asset.currentPrice)}
+                      </div>
+                      <div
+                        className="mono num"
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: up ? 'var(--pitch)' : 'var(--ref-red)',
+                        }}
+                      >
+                        {formatPercent(asset.dayChangePercent)}
+                      </div>
+                    </div>
+
+                    {/* Stats column (hidden on small) */}
+                    <div
+                      className="hidden sm:flex"
+                      style={{
+                        flexDirection: 'column',
+                        gap: 2,
+                        textAlign: 'right',
+                        minWidth: 90,
+                      }}
+                    >
+                      <div className="flex justify-between" style={{ gap: 8 }}>
+                        <span className="kicker" style={{ fontSize: 8 }}>P/E</span>
+                        <span className="mono num" style={{ fontSize: 10, color: 'var(--text-dim)' }}>
+                          {asset.peRatio !== null ? asset.peRatio.toFixed(1) : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between" style={{ gap: 8 }}>
+                        <span className="kicker" style={{ fontSize: 8 }}>BETA</span>
+                        <span
+                          className="mono num"
+                          style={{ fontSize: 10, color: riskCfg.color, fontWeight: 700 }}
+                        >
+                          {asset.beta.toFixed(2)}
+                        </span>
+                      </div>
+                      {asset.dividendYield > 0 && (
+                        <div className="flex justify-between" style={{ gap: 8 }}>
+                          <span className="kicker" style={{ fontSize: 8 }}>DIV</span>
+                          <span className="mono num" style={{ fontSize: 10, color: 'var(--pitch)' }}>
+                            {asset.dividendYield.toFixed(2)}%
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </motion.button>
+                );
+              })}
           </AnimatePresence>
 
           {!isLoading && filteredAssets.length === 0 && !searchTerm.trim() && (
-            <div className="py-12 text-center text-slate-500">
-              <svg className="w-12 h-12 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <p>No assets found matching your criteria</p>
+            <div style={{ padding: 32, textAlign: 'center' }}>
+              <Icon.Scout size={28} style={{ color: 'var(--text-mute)', margin: '0 auto 8px' }} />
+              <div className="kicker">NO TICKERS MATCH THIS FILTER</div>
             </div>
           )}
         </div>
@@ -333,3 +482,44 @@ export const AssetSelector: React.FC<AssetSelectorProps> = ({
     </Modal>
   );
 };
+
+const StadiumSelect: React.FC<{
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}> = ({ value, onChange, options }) => (
+  <select
+    value={value}
+    onChange={(e) => onChange(e.target.value)}
+    style={{
+      padding: '10px 30px 10px 14px',
+      background: 'var(--surface-2)',
+      border: '1px solid var(--line)',
+      borderRadius: 8,
+      color: 'var(--text)',
+      fontFamily: 'var(--font-body)',
+      fontSize: 12,
+      cursor: 'pointer',
+      outline: 'none',
+      appearance: 'none',
+      backgroundImage:
+        "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23808890' stroke-width='2'><path d='M6 9 L12 15 L18 9'/></svg>\")",
+      backgroundRepeat: 'no-repeat',
+      backgroundPosition: 'right 10px center',
+    }}
+    onFocus={(e) => {
+      e.currentTarget.style.borderColor = 'var(--pitch)';
+      e.currentTarget.style.background = 'var(--surface)';
+    }}
+    onBlur={(e) => {
+      e.currentTarget.style.borderColor = 'var(--line)';
+      e.currentTarget.style.background = 'var(--surface-2)';
+    }}
+  >
+    {options.map((opt) => (
+      <option key={opt.value} value={opt.value}>
+        {opt.label}
+      </option>
+    ))}
+  </select>
+);

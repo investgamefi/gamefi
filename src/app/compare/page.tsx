@@ -25,7 +25,7 @@ import {
   CustomDateRange,
   CustomComparisonSymbol,
 } from '@/types';
-import { calculatePortfolioPerformance, formatPercent, cn } from '@/lib/utils';
+import { calculatePortfolioPerformance, formatPercent } from '@/lib/utils';
 import {
   getMultipleBenchmarkPerformances,
   getMultipleCustomSymbolPerformances,
@@ -33,14 +33,13 @@ import {
 import { calculatePortfolioHistoricalData, calculateMetricsFromHistoricalData } from '@/lib/portfolioHistoricalData';
 import { PortfolioHistoricalPoint } from '@/types';
 import { fetchMultipleFundamentals, AssetFundamentals } from '@/lib/yahooFundamentals';
-import { useTheme } from '@/components/ThemeProvider';
+import { Icon } from '@/components/stadium/Icon';
 
 const MAX_PORTFOLIOS = 4;
 const MIN_PORTFOLIOS = 1;
 
 export default function ComparePage() {
-  const { resolvedTheme } = useTheme();
-  const { currentUser, isAuthenticated, loadData, portfolios, publicPortfolios } = useStore();
+  const { currentUser, loadData, portfolios, publicPortfolios } = useStore();
   const [selectedIds, setSelectedIds] = useState<string[]>(['']);
   const [users, setUsers] = useState<Map<string, User>>(new Map());
   const [selectedBenchmarks, setSelectedBenchmarks] = useState<BenchmarkSymbol[]>([]);
@@ -434,25 +433,33 @@ export default function ComparePage() {
   const canCompare = selectedPortfolios.length >= MIN_PORTFOLIOS;
 
   return (
-    <AppLayout>
-        {/* Page Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
-          <h1 className={cn('text-3xl font-bold mb-2', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>Compare Portfolios</h1>
-          <p className={cn(resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>
-            Compare up to {MAX_PORTFOLIOS} portfolios side by side to analyze their performance
-          </p>
-        </motion.div>
+    <AppLayout flush>
+      <div style={{ padding: '20px 24px 32px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {/* Header */}
+        <div>
+          <div className="kicker">TACTICS BOARD · UP TO {MAX_PORTFOLIOS} SQUADS</div>
+          <h1
+            className="display"
+            style={{
+              fontSize: 'clamp(24px, 3vw, 32px)',
+              letterSpacing: '-0.04em',
+              margin: '2px 0 0',
+            }}
+          >
+            Compare
+          </h1>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--text-mute)', marginTop: 6 }}>
+            Pit up to {MAX_PORTFOLIOS} squads side-by-side against the index and any custom ticker.
+          </div>
+        </div>
 
         {/* Portfolio Selectors */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: 12,
+          }}
         >
           {selectedIds.map((_, index) => (
             <PortfolioSelector
@@ -469,29 +476,49 @@ export default function ComparePage() {
 
           {selectedIds.length < MAX_PORTFOLIOS && (
             <button
+              type="button"
               onClick={handleAddSlot}
-              className={cn(
-                'flex items-center justify-center gap-2 px-4 py-3 border border-dashed rounded-xl transition-colors',
-                resolvedTheme === 'dark'
-                  ? 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-white hover:border-slate-600'
-                  : 'bg-slate-100 border-slate-300 text-slate-600 hover:text-slate-900 hover:border-slate-400'
-              )}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                padding: '36px 14px',
+                background: 'transparent',
+                border: '1px dashed var(--line-2)',
+                borderRadius: 8,
+                color: 'var(--text-dim)',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-display)',
+                fontSize: 12,
+                fontWeight: 600,
+                letterSpacing: '0.02em',
+                transition: 'background .12s, border-color .12s, color .12s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'var(--pitch)';
+                e.currentTarget.style.color = 'var(--pitch)';
+                e.currentTarget.style.background = 'var(--pitch-tint)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--line-2)';
+                e.currentTarget.style.color = 'var(--text-dim)';
+                e.currentTarget.style.background = 'transparent';
+              }}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add Portfolio
+              <Icon.Plus size={14} /> Add another squad
             </button>
           )}
-        </motion.div>
+        </div>
 
-        {/* Selected Portfolio Cards */}
+        {/* Selected portfolio cards */}
         {selectedPortfolios.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: 12,
+            }}
           >
             {selectedPortfoliosWithRealMetrics.map((item, index) => (
               <ComparisonCard
@@ -503,78 +530,68 @@ export default function ComparePage() {
                 colorIndex={index}
               />
             ))}
-          </motion.div>
+          </div>
         )}
 
-        {/* Benchmark Selection and Timeframe */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-          className="flex flex-col lg:flex-row gap-4 mb-8"
+        {/* Benchmark + Timeframe */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) auto',
+            gap: 12,
+            alignItems: 'stretch',
+          }}
         >
-          <div className="flex-1">
-            <BenchmarkSelector
-              selectedBenchmarks={selectedBenchmarks}
-              onToggle={handleToggleBenchmark}
-              maxSelections={3}
-            />
-          </div>
-          <div className="flex items-start gap-4">
-            <div className={cn(
-              'rounded-xl p-4 border',
-              resolvedTheme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-            )}>
-              <h3 className={cn('text-sm font-medium mb-3', resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>Timeframe</h3>
-              <div className="flex items-center gap-3">
-                <TimeframeSelector
-                  selectedTimeframe={timeframe}
-                  onSelect={(tf) => {
-                    setTimeframe(tf);
-                    setCustomDateRange(null); // Clear custom range when preset selected
-                  }}
-                  disabled={loadingBenchmarks || customDateRange !== null}
-                />
-                <CustomDateRangeSelector
-                  dateRange={customDateRange}
-                  onDateRangeChange={setCustomDateRange}
-                  disabled={loadingBenchmarks}
-                />
-              </div>
+          <BenchmarkSelector
+            selectedBenchmarks={selectedBenchmarks}
+            onToggle={handleToggleBenchmark}
+            maxSelections={3}
+          />
+          <div className="stadium-card" style={{ padding: 14, minWidth: 220 }}>
+            <div className="kicker">MATCH CLOCK</div>
+            <div className="display" style={{ fontSize: 14, letterSpacing: '-0.01em', marginTop: 1, marginBottom: 10 }}>
+              Timeframe
+            </div>
+            <div className="flex items-center flex-wrap" style={{ gap: 8 }}>
+              <TimeframeSelector
+                selectedTimeframe={timeframe}
+                onSelect={(tf) => {
+                  setTimeframe(tf);
+                  setCustomDateRange(null);
+                }}
+                disabled={loadingBenchmarks || customDateRange !== null}
+              />
+              <CustomDateRangeSelector
+                dateRange={customDateRange}
+                onDateRangeChange={setCustomDateRange}
+                disabled={loadingBenchmarks}
+              />
             </div>
           </div>
-        </motion.div>
+        </div>
 
-        {/* Custom Symbol Search */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.28 }}
-          className="mb-8"
-        >
-          <CustomSymbolSearch
-            customSymbols={customSymbols}
-            onAddSymbol={handleAddCustomSymbol}
-            onRemoveSymbol={handleRemoveCustomSymbol}
-            maxSymbols={5}
-          />
-        </motion.div>
+        {/* Custom symbol search */}
+        <CustomSymbolSearch
+          customSymbols={customSymbols}
+          onAddSymbol={handleAddCustomSymbol}
+          onRemoveSymbol={handleRemoveCustomSymbol}
+          maxSymbols={5}
+        />
 
-        {/* Comparison Content */}
+        {/* Content */}
         {canCompare ? (
           <>
-            {/* Performance Line Chart */}
             {(selectedPortfoliosWithRealMetrics.length > 0 || allBenchmarkPerformances.length > 0) && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="mb-8"
-              >
+              <>
                 <PerformanceLineChart
                   portfolios={selectedPortfoliosWithRealMetrics.map((p, index) => ({
                     name: p.portfolio.name,
-                    color: ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b'][index % 4],
+                    color: [
+                      'oklch(0.72 0.21 145)',
+                      'oklch(0.75 0.14 230)',
+                      'oklch(0.78 0.18 320)',
+                      'oklch(0.83 0.18 90)',
+                    ][index % 4],
                     performance: p.performance,
                     createdAt: p.portfolio.createdAt,
                     realHistoricalData: portfolioHistoricalData.get(p.portfolio.id),
@@ -582,19 +599,23 @@ export default function ComparePage() {
                   benchmarks={allBenchmarkPerformances}
                 />
                 {(loadingBenchmarks || loadingPortfolioData) && (
-                  <div className="text-center text-slate-500 text-sm mt-2">
-                    Loading {loadingPortfolioData ? 'portfolio' : 'benchmark'} data...
+                  <div
+                    className="kicker"
+                    style={{ textAlign: 'center', color: 'var(--text-mute)', marginTop: -8 }}
+                  >
+                    LOADING {loadingPortfolioData ? 'SQUAD' : 'BENCHMARK'} DATA…
                   </div>
                 )}
-              </motion.div>
+              </>
             )}
 
-            {/* Metric Charts Grid */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.35 }}
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8"
+            {/* Metric chart grid */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gap: 12,
+              }}
             >
               <MetricComparisonChart
                 performances={selectedPortfoliosWithRealMetrics.map((p) => ({
@@ -662,40 +683,31 @@ export default function ComparePage() {
                 formatValue={(v) => `${v.toFixed(1)}%`}
                 higherIsBetter={true}
               />
-            </motion.div>
+            </div>
 
             {/* Comparison Table */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-            >
-              <ComparisonTable
-                portfolioNames={selectedPortfoliosWithRealMetrics.map((p) => p.portfolio.name)}
-                performances={selectedPortfoliosWithRealMetrics.map((p) => p.performance)}
-                benchmarks={allBenchmarkPerformances}
-              />
-            </motion.div>
+            <ComparisonTable
+              portfolioNames={selectedPortfoliosWithRealMetrics.map((p) => p.portfolio.name)}
+              performances={selectedPortfoliosWithRealMetrics.map((p) => p.performance)}
+              benchmarks={allBenchmarkPerformances}
+            />
           </>
         ) : (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className={cn(
-              'rounded-2xl p-12 text-center border',
-              resolvedTheme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-            )}
+          <div
+            className="stadium-card"
+            style={{ padding: 48, textAlign: 'center', borderStyle: 'dashed' }}
           >
-            <svg className="w-16 h-16 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-            <h3 className={cn('text-xl font-semibold mb-2', resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900')}>Select Portfolios to Compare</h3>
-            <p className={cn(resolvedTheme === 'dark' ? 'text-slate-400' : 'text-slate-600')}>
-              Choose at least {MIN_PORTFOLIOS} portfolios from the dropdowns above to start comparing
-            </p>
-          </motion.div>
+            <Icon.Compare size={40} style={{ color: 'var(--text-mute)', margin: '0 auto 12px' }} />
+            <div className="display" style={{ fontSize: 18, marginBottom: 6 }}>
+              Pick squads to compare
+            </div>
+            <div style={{ color: 'var(--text-dim)', fontSize: 13, maxWidth: 480, margin: '0 auto' }}>
+              Choose at least {MIN_PORTFOLIOS} squad from the dropdowns above to start comparing — add benchmarks
+              and custom tickers to set the bar.
+            </div>
+          </div>
         )}
+      </div>
     </AppLayout>
   );
 }

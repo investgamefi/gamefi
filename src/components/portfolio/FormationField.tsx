@@ -2,19 +2,17 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Portfolio, PortfolioPlayer, Position, Formation, FORMATIONS, Asset, POSITION_RISK_MAP, RiskLevel } from '@/types';
+import { Portfolio, PortfolioPlayer, Position, Formation, FORMATIONS, POSITION_RISK_MAP, RiskLevel } from '@/types';
 import { cn, formatCurrency, formatPercent } from '@/lib/utils';
 
-const RISK_COLORS: Record<RiskLevel, { bg: string; border: string; text: string }> = {
-  low: { bg: 'bg-blue-500', border: 'border-blue-500/50', text: 'text-blue-400' },
-  medium: { bg: 'bg-yellow-500', border: 'border-yellow-500/50', text: 'text-yellow-400' },
-  high: { bg: 'bg-red-500', border: 'border-red-500/50', text: 'text-red-400' },
-};
-
-const RISK_LABELS: Record<RiskLevel, string> = {
-  low: 'Low Risk',
-  medium: 'Med Risk',
-  high: 'High Risk',
+/* Stadium risk tiers — map directly to position rows on the pitch.
+   DEF (sky)  – defenders + GK, low volatility
+   MID (whistle) – midfielders, balanced
+   ATK (ref-red) – attackers, high volatility */
+const RISK_TIER: Record<RiskLevel, { code: 'DEF' | 'MID' | 'ATK' | 'GK'; chip: string; text: string }> = {
+  low:    { code: 'DEF', chip: 'oklch(0.75 0.14 230)',  text: 'oklch(0.75 0.14 230)' },
+  medium: { code: 'MID', chip: 'oklch(0.83 0.18 90)',   text: 'oklch(0.55 0.18 80)'  },
+  high:   { code: 'ATK', chip: 'oklch(0.65 0.22 25)',   text: 'oklch(0.65 0.22 25)'  },
 };
 
 interface FormationFieldProps {
@@ -22,46 +20,35 @@ interface FormationFieldProps {
   onPositionClick?: (player: PortfolioPlayer, position: Position) => void;
   isEditable?: boolean;
   compact?: boolean;
+  /** Render the chalk/blueprint variant instead of the green stadium pitch. */
+  variant?: 'stadium' | 'tactics';
 }
 
-// Default allocation per player (100% / 11 players)
 const DEFAULT_ALLOCATION = 100 / 11;
-
-// Maximum vertical offset based on weight (as percentage of field height)
 const MAX_WEIGHT_OFFSET = 8;
 
 const getPositionCoords = (
   position: Position,
   formation: Formation,
-  allocation: number = DEFAULT_ALLOCATION
+  allocation: number = DEFAULT_ALLOCATION,
 ): { x: number; y: number } => {
   const positions = FORMATIONS[formation];
-
-  // Calculate row positions (bottom to top)
   const rowYPositions = [85, 65, 40, 15]; // GK, DEF, MID, ATK
-
-  // Find positions in the same row
   const sameRowPositions = positions.filter((p) => p.row === position.row);
   const positionIndex = sameRowPositions.findIndex((p) => p.id === position.id);
   const totalInRow = sameRowPositions.length;
-
-  // Calculate X position (evenly distributed)
   const spacing = 80 / (totalInRow + 1);
   const x = 10 + spacing * (positionIndex + 1);
-
-  // Calculate Y offset based on weight deviation from average
-  // Higher weight = negative offset (moves UP on field)
   const weightDeviation = allocation - DEFAULT_ALLOCATION;
-  const normalizedDeviation = weightDeviation / DEFAULT_ALLOCATION; // -1 to ~10 range
-  const yOffset = -normalizedDeviation * MAX_WEIGHT_OFFSET; // Clamped offset
-
-  // Clamp offset to prevent overlapping with other rows
-  const clampedOffset = Math.max(-MAX_WEIGHT_OFFSET, Math.min(MAX_WEIGHT_OFFSET, yOffset));
-  const y = rowYPositions[position.row] + clampedOffset;
-
+  const normalizedDeviation = weightDeviation / DEFAULT_ALLOCATION;
+  const yOffset = -normalizedDeviation * MAX_WEIGHT_OFFSET;
+  const clamped = Math.max(-MAX_WEIGHT_OFFSET, Math.min(MAX_WEIGHT_OFFSET, yOffset));
+  const y = rowYPositions[position.row] + clamped;
   return { x, y };
 };
 
+/* A jersey-style player slot. Stadium variant = white jersey on green field.
+   Tactics variant = dark jersey on chalk blueprint. */
 const PlayerSlot: React.FC<{
   player: PortfolioPlayer;
   position: Position;
@@ -69,14 +56,41 @@ const PlayerSlot: React.FC<{
   onClick?: () => void;
   isEditable?: boolean;
   compact?: boolean;
-}> = ({ player, position, formation, onClick, isEditable, compact }) => {
+  variant?: 'stadium' | 'tactics';
+}> = ({ player, position, formation, onClick, isEditable, compact, variant = 'stadium' }) => {
   const allocation = player.allocation || DEFAULT_ALLOCATION;
   const { x, y } = getPositionCoords(position, formation, allocation);
   const hasAsset = player.asset !== null;
   const riskLevel = POSITION_RISK_MAP[position.row];
-  const riskColor = RISK_COLORS[riskLevel];
+  const tier = RISK_TIER[riskLevel];
   const isHighWeight = allocation > DEFAULT_ALLOCATION + 2;
   const isLowWeight = allocation < DEFAULT_ALLOCATION - 2;
+  const positive = hasAsset && player.asset!.dayChangePercent >= 0;
+  const dims = compact ? { w: 44, fontSize: 11 } : { w: 60, fontSize: 13 };
+
+  // Deterministic jersey number derived from position id (matches design's logic)
+  const JERSEY_MAP: Record<string, number> = {
+    gk: 1, rb: 2, lb: 3, lcb: 4, rcb: 5, cdm: 6, rcm: 8, lcm: 10,
+    rw: 7, st: 9, lw: 11, rm: 7, lm: 11, rst: 9, lst: 10, rwb: 2, lwb: 3,
+    ccb: 4, ccm: 8, sw: 5, cam: 10, cf: 9, sub: 12,
+  };
+  const jerseyNum = JERSEY_MAP[position.id.toLowerCase()] || (position.row + 1);
+
+  const jerseyBg = hasAsset
+    ? variant === 'tactics'
+      ? 'oklch(0.18 0.018 250)'
+      : 'oklch(0.99 0.005 90)'
+    : 'transparent';
+  const jerseyBorder = hasAsset
+    ? `2px solid ${variant === 'tactics' ? 'var(--pitch)' : 'var(--ink)'}`
+    : '2px dashed rgba(255,255,255,0.4)';
+  const jerseyText = hasAsset
+    ? variant === 'tactics'
+      ? 'var(--text)'
+      : 'var(--ink)'
+    : variant === 'tactics'
+    ? 'var(--text-dim)'
+    : 'rgba(255,255,255,0.55)';
 
   return (
     <motion.button
@@ -85,125 +99,224 @@ const PlayerSlot: React.FC<{
       transition={{ type: 'spring', duration: 0.5, delay: Math.random() * 0.3 }}
       onClick={onClick}
       disabled={!isEditable}
-      className={cn(
-        'absolute transform -translate-x-1/2 -translate-y-1/2 group',
-        isEditable && 'cursor-pointer'
-      )}
-      style={{ left: `${x}%`, top: `${y}%` }}
+      className={cn('absolute group', isEditable && 'cursor-pointer')}
+      style={{
+        left: `${x}%`,
+        top: `${y}%`,
+        transform: 'translate(-50%, -50%)',
+        background: 'transparent',
+        border: 'none',
+        padding: 0,
+      }}
     >
-      {/* Risk Level Badge - only show if no asset */}
-      {!compact && !hasAsset && (
-        <div
-          className={cn(
-            'absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-bold whitespace-nowrap z-10',
-            riskColor.bg,
-            'text-white'
-          )}
-          title={`${RISK_LABELS[riskLevel]} position`}
-        >
-          {riskLevel === 'low' ? 'LOW' : riskLevel === 'medium' ? 'MED' : 'HIGH'}
-        </div>
-      )}
-
-      {/* Player Circle */}
       <div
-        className={cn(
-          'relative rounded-full border-2 flex flex-col items-center justify-center transition-all duration-300',
-          compact ? 'w-10 h-10' : 'w-14 h-14 sm:w-16 sm:h-16',
-          hasAsset
-            ? 'bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border-emerald-500/50'
-            : cn('bg-slate-800/60 border-dashed', riskColor.border),
-          isEditable && 'hover:scale-110 hover:border-emerald-400'
-        )}
+        style={{
+          position: 'relative',
+          width: dims.w,
+          height: dims.w,
+          background: jerseyBg,
+          border: jerseyBorder,
+          borderRadius: 4,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: jerseyText,
+          boxShadow: hasAsset ? '0 6px 18px -8px rgba(0,0,0,0.45)' : 'none',
+          transition: 'transform .15s ease',
+        }}
       >
+        {/* Jersey number badge top-left */}
+        {hasAsset && (
+          <div
+            className="num"
+            style={{
+              position: 'absolute',
+              top: -8,
+              left: -8,
+              width: 18,
+              height: 18,
+              background: positive ? 'var(--pitch)' : 'var(--ref-red)',
+              color: positive ? 'oklch(0.14 0.05 145)' : '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 9,
+              fontWeight: 700,
+              borderRadius: 3,
+            }}
+          >
+            {jerseyNum}
+          </div>
+        )}
+
+        {/* Position risk pill bottom-center (only on empty slots) */}
+        {!hasAsset && !compact && (
+          <div
+            className="kicker"
+            style={{
+              position: 'absolute',
+              bottom: -16,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              padding: '1px 6px',
+              background: tier.chip,
+              color: variant === 'tactics' ? 'var(--bg)' : 'oklch(0.14 0.05 145)',
+              fontSize: 8,
+              borderRadius: 2,
+              letterSpacing: '0.14em',
+            }}
+          >
+            {tier.code}
+          </div>
+        )}
+
         {hasAsset ? (
           <>
-            <span className={cn('font-bold text-white', compact ? 'text-xs' : 'text-sm')}>
+            <div
+              className="display num"
+              style={{
+                fontSize: dims.fontSize,
+                lineHeight: 1,
+                letterSpacing: '-0.04em',
+              }}
+            >
               {player.asset!.symbol}
-            </span>
+            </div>
             {!compact && (
-              <span
-                className={cn(
-                  'text-xs font-medium',
-                  player.asset!.dayChangePercent >= 0 ? 'text-emerald-400' : 'text-red-400'
-                )}
+              <div
+                className="mono"
+                style={{
+                  fontSize: 9,
+                  marginTop: 2,
+                  color: positive ? 'var(--pitch-deep)' : 'var(--ref-red)',
+                  fontWeight: 600,
+                }}
               >
                 {formatPercent(player.asset!.dayChangePercent)}
-              </span>
+              </div>
             )}
           </>
         ) : (
-          <span className={cn('text-slate-500', compact ? 'text-xs' : 'text-sm')}>
+          <div className="kicker" style={{ fontSize: 8, color: 'inherit' }}>
             {position.shortName}
-          </span>
+          </div>
         )}
 
-        {/* Position Badge */}
-        <div
-          className={cn(
-            'absolute -bottom-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full text-xs font-medium',
-            hasAsset ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-slate-400',
-            compact && 'text-[10px] px-1'
-          )}
-        >
-          {position.shortName}
-        </div>
-
-        {/* Add Icon for empty slots */}
+        {/* "+" hover affordance on empty editable slots */}
         {!hasAsset && isEditable && (
-          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-            <div className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-            </div>
+          <div
+            className="absolute inset-0 opacity-0 group-hover:opacity-100"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'oklch(0.72 0.21 145 / 0.85)',
+              borderRadius: 2,
+              transition: 'opacity .15s',
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.14 0.05 145)" strokeWidth="3" strokeLinecap="round">
+              <path d="M12 5 V19 M5 12 H19" />
+            </svg>
           </div>
         )}
       </div>
 
-      {/* Weight Badge */}
+      {/* Weight badge under jersey */}
       {hasAsset && !compact && (
         <div
-          className={cn(
-            'absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-bold whitespace-nowrap',
-            isHighWeight ? 'bg-emerald-500 text-white' : isLowWeight ? 'bg-slate-600 text-slate-300' : 'bg-slate-700 text-slate-300'
-          )}
+          className="mono num"
+          style={{
+            position: 'absolute',
+            left: '50%',
+            bottom: -20,
+            transform: 'translateX(-50%)',
+            fontSize: 9,
+            fontWeight: 600,
+            color:
+              isHighWeight
+                ? 'var(--pitch)'
+                : isLowWeight
+                ? 'var(--text-mute)'
+                : variant === 'tactics'
+                ? 'var(--text-dim)'
+                : 'rgba(255,255,255,0.85)',
+            background:
+              variant === 'tactics' ? 'transparent' : 'rgba(0,0,0,0.55)',
+            padding: '1px 5px',
+            borderRadius: 3,
+            letterSpacing: '0.05em',
+          }}
         >
           {allocation.toFixed(1)}%
         </div>
       )}
 
-      {/* Hover Card */}
+      {/* Hover card */}
       {hasAsset && !compact && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-10">
-          <div className="bg-slate-900 border border-slate-700 rounded-lg p-3 shadow-xl min-w-[140px]">
-            <p className="font-medium text-white text-sm">{player.asset!.name}</p>
-            <p className="text-slate-400 text-xs">{player.asset!.sector}</p>
-            <div className="mt-2 flex justify-between text-xs">
-              <span className="text-slate-400">Weight:</span>
-              <span className={cn(
-                'font-semibold',
-                isHighWeight ? 'text-emerald-400' : isLowWeight ? 'text-slate-400' : 'text-white'
-              )}>
+        <div
+          className="absolute opacity-0 group-hover:opacity-100"
+          style={{
+            bottom: 'calc(100% + 14px)',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            transition: 'opacity .2s',
+            pointerEvents: 'none',
+            zIndex: 10,
+          }}
+        >
+          <div
+            className="stadium-card"
+            style={{
+              padding: 10,
+              background: 'var(--ink)',
+              border: '1px solid var(--line-2)',
+              color: '#fff',
+              minWidth: 160,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+            }}
+          >
+            <div className="display" style={{ fontSize: 13, letterSpacing: '-0.01em' }}>
+              {player.asset!.name}
+            </div>
+            <div className="mono" style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>
+              {player.asset!.sector.toUpperCase()}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 8px', marginTop: 8 }}>
+              <span className="kicker" style={{ color: 'rgba(255,255,255,0.4)' }}>WEIGHT</span>
+              <span className="mono num" style={{ fontSize: 11, textAlign: 'right' }}>
                 {allocation.toFixed(1)}%
               </span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-slate-400">Price:</span>
-              <span className="text-white">{formatCurrency(player.asset!.currentPrice)}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-slate-400">Day:</span>
-              <span className={player.asset!.dayChangePercent >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+              <span className="kicker" style={{ color: 'rgba(255,255,255,0.4)' }}>PRICE</span>
+              <span className="mono num" style={{ fontSize: 11, textAlign: 'right' }}>
+                {formatCurrency(player.asset!.currentPrice)}
+              </span>
+              <span className="kicker" style={{ color: 'rgba(255,255,255,0.4)' }}>DAY</span>
+              <span
+                className="mono num"
+                style={{
+                  fontSize: 11,
+                  textAlign: 'right',
+                  color: positive ? 'var(--pitch-glow)' : '#ff7766',
+                }}
+              >
                 {formatPercent(player.asset!.dayChangePercent)}
               </span>
-            </div>
-            <div className="flex justify-between text-xs mt-1">
-              <span className="text-slate-400">Position Risk:</span>
-              <span className={riskColor.text}>{RISK_LABELS[riskLevel]}</span>
+              <span className="kicker" style={{ color: 'rgba(255,255,255,0.4)' }}>RISK</span>
+              <span
+                className="mono num"
+                style={{
+                  fontSize: 11,
+                  textAlign: 'right',
+                  color: tier.text,
+                }}
+              >
+                {tier.code}
+              </span>
             </div>
           </div>
-          <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-900" />
         </div>
       )}
     </motion.button>
@@ -215,47 +328,140 @@ export const FormationField: React.FC<FormationFieldProps> = ({
   onPositionClick,
   isEditable = false,
   compact = false,
+  variant = 'stadium',
 }) => {
   const positions = FORMATIONS[portfolio.formation];
+
+  const fieldBg =
+    variant === 'tactics' ? (
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'var(--surface)',
+          backgroundImage:
+            'linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px)',
+          backgroundSize: '24px 24px',
+        }}
+      />
+    ) : (
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background:
+            'repeating-linear-gradient(0deg, oklch(0.42 0.16 145) 0 7.14%, oklch(0.36 0.16 145) 7.14% 14.28%)',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background:
+              'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.35) 100%)',
+          }}
+        />
+      </div>
+    );
+
+  const lineStroke = variant === 'tactics' ? 'oklch(0.72 0.21 145 / 0.5)' : 'rgba(255,255,255,0.5)';
 
   return (
     <div
       className={cn(
-        'relative bg-gradient-to-b from-emerald-900/30 via-emerald-800/20 to-emerald-900/30 rounded-2xl overflow-hidden',
-        compact ? 'aspect-[4/5]' : 'aspect-[4/5] sm:aspect-[3/4]'
+        'relative overflow-hidden',
+        compact ? 'aspect-[4/5]' : 'aspect-[4/5] sm:aspect-[3/4]',
       )}
+      style={{
+        borderRadius: 12,
+        border:
+          variant === 'tactics' ? '1px solid var(--line-2)' : '1px solid rgba(0,0,0,0.25)',
+      }}
     >
-      {/* Field Lines */}
-      <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
-        {/* Outer Border */}
-        <rect x="5%" y="5%" width="90%" height="90%" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="2" />
+      {fieldBg}
 
-        {/* Center Line */}
-        <line x1="5%" y1="50%" x2="95%" y2="50%" stroke="rgba(255,255,255,0.1)" strokeWidth="2" />
-
-        {/* Center Circle */}
-        <circle cx="50%" cy="50%" r="12%" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="2" />
-        <circle cx="50%" cy="50%" r="1%" fill="rgba(255,255,255,0.2)" />
-
-        {/* Penalty Areas */}
-        <rect x="25%" y="5%" width="50%" height="15%" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="2" />
-        <rect x="25%" y="80%" width="50%" height="15%" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="2" />
-
-        {/* Goal Areas */}
-        <rect x="35%" y="5%" width="30%" height="6%" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="2" />
-        <rect x="35%" y="89%" width="30%" height="6%" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="2" />
+      {/* Chalk lines */}
+      <svg
+        className="absolute inset-0 w-full h-full"
+        preserveAspectRatio="none"
+        viewBox="0 0 100 140"
+      >
+        <rect x="4" y="4" width="92" height="132" fill="none" stroke={lineStroke} strokeWidth="1.5" />
+        <line x1="4" y1="70" x2="96" y2="70" stroke={lineStroke} strokeWidth="1.5" />
+        <circle cx="50" cy="70" r="10" fill="none" stroke={lineStroke} strokeWidth="1.5" />
+        <circle cx="50" cy="70" r="0.8" fill={lineStroke} />
+        <rect x="22" y="4" width="56" height="18" fill="none" stroke={lineStroke} strokeWidth="1.5" />
+        <rect x="22" y="118" width="56" height="18" fill="none" stroke={lineStroke} strokeWidth="1.5" />
+        <rect x="36" y="4" width="28" height="8" fill="none" stroke={lineStroke} strokeWidth="1.5" />
+        <rect x="36" y="128" width="28" height="8" fill="none" stroke={lineStroke} strokeWidth="1.5" />
+        <rect x="42" y="2" width="16" height="2" fill="none" stroke={lineStroke} strokeWidth="1.5" />
+        <rect x="42" y="136" width="16" height="2" fill="none" stroke={lineStroke} strokeWidth="1.5" />
+        <circle cx="50" cy="14" r="0.6" fill={lineStroke} />
+        <circle cx="50" cy="126" r="0.6" fill={lineStroke} />
       </svg>
 
-      {/* Formation Label */}
-      <div className="absolute top-3 left-3 px-2 py-1 bg-slate-900/60 rounded-lg backdrop-blur-sm">
-        <span className="text-xs font-medium text-emerald-400">{portfolio.formation}</span>
+      {/* Zone labels along the left edge */}
+      {!compact && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            left: 8,
+            width: 28,
+            pointerEvents: 'none',
+          }}
+        >
+          {[
+            { y: 18, label: 'ATK', sub: 'HIGH' },
+            { y: 50, label: 'MID', sub: 'MED' },
+            { y: 76, label: 'DEF', sub: 'LOW' },
+            { y: 92, label: 'GK', sub: 'LOW' },
+          ].map((z) => (
+            <div
+              key={z.label}
+              style={{
+                position: 'absolute',
+                top: `${z.y}%`,
+                left: 0,
+                transform: 'translateY(-50%)',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 9,
+                lineHeight: 1.3,
+                color: variant === 'tactics' ? 'var(--text-dim)' : 'rgba(255,255,255,0.65)',
+                letterSpacing: '0.16em',
+              }}
+            >
+              <div style={{ fontWeight: 700 }}>{z.label}</div>
+              <div style={{ opacity: 0.6 }}>{z.sub}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Formation label */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 8,
+          right: 10,
+          fontFamily: 'var(--font-mono)',
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: '0.18em',
+          color: variant === 'tactics' ? 'var(--pitch)' : 'rgba(255,255,255,0.85)',
+          background: variant === 'tactics' ? 'transparent' : 'rgba(0,0,0,0.35)',
+          padding: '2px 6px',
+          borderRadius: 3,
+        }}
+      >
+        {portfolio.formation}
       </div>
 
-      {/* Player Positions */}
+      {/* Player jerseys */}
       {portfolio.players.map((player) => {
         const position = positions.find((p) => p.id === player.positionId);
         if (!position) return null;
-
         return (
           <PlayerSlot
             key={player.positionId}
@@ -265,23 +471,10 @@ export const FormationField: React.FC<FormationFieldProps> = ({
             onClick={() => onPositionClick?.(player, position)}
             isEditable={isEditable}
             compact={compact}
+            variant={variant}
           />
         );
       })}
-
-      {/* Grass Pattern */}
-      <div
-        className="absolute inset-0 opacity-10 pointer-events-none"
-        style={{
-          backgroundImage: `repeating-linear-gradient(
-            0deg,
-            transparent,
-            transparent 20px,
-            rgba(255,255,255,0.03) 20px,
-            rgba(255,255,255,0.03) 40px
-          )`,
-        }}
-      />
     </div>
   );
 };
