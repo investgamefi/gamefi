@@ -102,6 +102,9 @@ interface AppState {
   getActiveChallengesCount: () => number;
   canCreateChallenge: (type: ChallengeType) => { canCreate: boolean; reason?: string };
 
+  // Actions - Live challenge returns (mid-match percentage refresh)
+  loadLiveReturns: () => Promise<void>;
+
   // Actions - Training / lesson completion
   loadLessonCompletions: () => Promise<void>;
   markLessonComplete: (
@@ -758,6 +761,42 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   // Data loading
+  loadLiveReturns: async () => {
+    const { currentUser, challenges, activeChallenges } = get();
+    if (!currentUser || activeChallenges.length === 0) return;
+
+    try {
+      const res = await fetch(`/api/challenges/live?userId=${currentUser.id}`);
+      const data = await res.json();
+      if (!data.success || !data.live) return;
+
+      const liveMap: Record<
+        string,
+        { challengerReturnPercent: number; opponentReturnPercent: number }
+      > = data.live;
+
+      /* Merge the live numbers into both the master `challenges` array
+         and the derived `activeChallenges` slice so any consumer
+         (Fixtures page, Dashboard Live Fixtures) picks them up. */
+      const merge = (c: Challenge): Challenge => {
+        const live = liveMap[c.id];
+        if (!live) return c;
+        return {
+          ...c,
+          challengerReturnPercent: live.challengerReturnPercent,
+          opponentReturnPercent: live.opponentReturnPercent,
+        };
+      };
+
+      set({
+        challenges: challenges.map(merge),
+        activeChallenges: activeChallenges.map(merge),
+      });
+    } catch (error) {
+      console.error('Failed to load live returns:', error);
+    }
+  },
+
   loadLessonCompletions: async () => {
     const { currentUser } = get();
     if (!currentUser) {

@@ -48,6 +48,7 @@ export default function DashboardPage() {
     activeChallenges,
     pendingChallenges,
     loadChallenges,
+    loadLiveReturns,
   } = useStore();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState('');
@@ -154,6 +155,15 @@ export default function DashboardPage() {
   useEffect(() => {
     loadChallenges();
   }, [loadChallenges]);
+
+  // Refresh live percentages on any active challenges so the Live
+  // Fixtures cards show real % rather than "WAITING ON DATA".
+  useEffect(() => {
+    if (activeChallenges.length > 0) {
+      loadLiveReturns();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeChallenges.length, loadLiveReturns]);
 
   // Real perf for top performers (public portfolios)
   useEffect(() => {
