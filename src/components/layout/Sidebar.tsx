@@ -23,8 +23,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/leaderboard', label: 'League',    icon: 'Table'    },
   { href: '/market',      label: 'Transfer',  icon: 'Transfer' },
   { href: '/explore',     label: 'Scout',     icon: 'Scout'    },
-  { href: '/coaching',    label: 'Training',  icon: 'Coach'    },
-  { href: '/learn',       label: 'Academy',   icon: 'Guide'    },
+  { href: '/training',    label: 'Training',  icon: 'Coach'    },
   { href: '/compare',     label: 'Compare',   icon: 'Compare'  },
   { href: '/guide',       label: 'Playbook',  icon: 'Whistle'  },
 ];
