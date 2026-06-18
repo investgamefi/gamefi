@@ -42,7 +42,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onMobileClose,
 }) => {
   const pathname = usePathname();
-  const { currentUser } = useStore();
+  const { currentUser, seasonState } = useStore();
   const levelInfo = currentUser ? calculateLevel(currentUser.xp) : null;
 
   const sidebarContent = (
@@ -133,6 +133,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
           );
         })}
       </nav>
+
+      {/* Season pill — small clock for the global season */}
+      {!isCollapsed && seasonState && (
+        <div
+          style={{
+            padding: '10px 12px 0',
+          }}
+        >
+          <div
+            className="flex items-center justify-between"
+            style={{
+              padding: '6px 10px',
+              borderRadius: 6,
+              background: 'var(--surface)',
+              border: '1px solid var(--line)',
+              gap: 8,
+            }}
+            title={`Season ${seasonState.seasonNumber} · Gameweek ${seasonState.currentGameweek}/52 · Quarter ${seasonState.currentQuarter}/4`}
+          >
+            <span className="kicker" style={{ fontSize: 9 }}>SEASON {seasonState.seasonNumber}</span>
+            <span className="mono num" style={{ fontSize: 10, color: 'var(--pitch)', fontWeight: 700, letterSpacing: '0.06em' }}>
+              GW{seasonState.currentGameweek} · Q{seasonState.currentQuarter}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Rank footer */}
       {!isCollapsed && levelInfo && currentUser && (

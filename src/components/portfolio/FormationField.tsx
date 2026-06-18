@@ -22,6 +22,11 @@ interface FormationFieldProps {
   compact?: boolean;
   /** Render the chalk/blueprint variant instead of the green stadium pitch. */
   variant?: 'stadium' | 'tactics';
+  /** Show the bench grid below the pitch (squad detail page). When omitted
+      the field only renders the starting XI on the pitch. */
+  showBench?: boolean;
+  /** Click handler for bench chips — fired when a bench slot is tapped. */
+  onBenchClick?: (player: PortfolioPlayer) => void;
 }
 
 const DEFAULT_ALLOCATION = 100 / 11;
@@ -329,8 +334,15 @@ export const FormationField: React.FC<FormationFieldProps> = ({
   isEditable = false,
   compact = false,
   variant = 'stadium',
+  showBench = false,
+  onBenchClick,
 }) => {
   const positions = FORMATIONS[portfolio.formation];
+  /* Split players into starters and bench. The bench flag is opt-in: any
+     row missing isBench is treated as a starter, which keeps legacy
+     11-player portfolios rendering correctly on the pitch. */
+  const starters = portfolio.players.filter((p) => !p.isBench);
+  const benchPlayers = portfolio.players.filter((p) => p.isBench);
 
   const fieldBg =
     variant === 'tactics' ? (
@@ -366,7 +378,7 @@ export const FormationField: React.FC<FormationFieldProps> = ({
 
   const lineStroke = variant === 'tactics' ? 'oklch(0.72 0.21 145 / 0.5)' : 'rgba(255,255,255,0.5)';
 
-  return (
+  const pitchEl = (
     <div
       className={cn(
         'relative overflow-hidden',
@@ -458,8 +470,9 @@ export const FormationField: React.FC<FormationFieldProps> = ({
         {portfolio.formation}
       </div>
 
-      {/* Player jerseys */}
-      {portfolio.players.map((player) => {
+      {/* Player jerseys — STARTERS only. Bench is rendered separately
+          below the pitch when showBench is true. */}
+      {starters.map((player) => {
         const position = positions.find((p) => p.id === player.positionId);
         if (!position) return null;
         return (
@@ -475,6 +488,115 @@ export const FormationField: React.FC<FormationFieldProps> = ({
           />
         );
       })}
+    </div>
+  );
+
+  if (!showBench) return pitchEl;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {pitchEl}
+      <BenchGrid
+        bench={benchPlayers}
+        onBenchClick={onBenchClick}
+        isEditable={isEditable}
+      />
+    </div>
+  );
+};
+
+/* Bench strip — 11 slots in a 4-col / 6-col grid below the pitch.
+   Uses the same risk-tier colour vocabulary as the pitch chips but
+   slightly desaturated to read as reserves. */
+const BenchGrid: React.FC<{
+  bench: PortfolioPlayer[];
+  onBenchClick?: (player: PortfolioPlayer) => void;
+  isEditable?: boolean;
+}> = ({ bench, onBenchClick, isEditable }) => {
+  /* Pad bench up to 11 slots so the grid always reads as a full
+     reserves row even when the user hasn't filled every spot yet. */
+  const slots: (PortfolioPlayer | null)[] = [...bench];
+  while (slots.length < 11) slots.push(null);
+
+  return (
+    <div
+      className="stadium-card"
+      style={{
+        padding: 12,
+        background: 'var(--surface-2)',
+        borderColor: 'var(--line)',
+      }}
+    >
+      <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+        <div className="kicker">BENCH · {bench.filter((b) => b.asset).length}/11 RESERVES</div>
+        <div className="mono" style={{ fontSize: 9, color: 'var(--text-mute)', letterSpacing: '0.12em' }}>
+          SUB ON WEEKEND
+        </div>
+      </div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(56px, 1fr))',
+          gap: 8,
+        }}
+      >
+        {slots.map((player, i) => (
+          <button
+            key={player?.positionId ?? `bench-empty-${i}`}
+            type="button"
+            onClick={() => player && isEditable && onBenchClick?.(player)}
+            disabled={!player || !isEditable}
+            style={{
+              minHeight: 56,
+              padding: 6,
+              background: player ? 'var(--surface)' : 'transparent',
+              border: '1px dashed ' + (player ? 'var(--line-2)' : 'var(--line)'),
+              borderRadius: 6,
+              cursor: player && isEditable ? 'pointer' : 'default',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 2,
+              opacity: player ? 0.85 : 0.45,
+              transition: 'opacity .15s, border-color .15s',
+            }}
+            onMouseEnter={(e) => {
+              if (player && isEditable) {
+                e.currentTarget.style.opacity = '1';
+                e.currentTarget.style.borderColor = 'var(--pitch)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (player && isEditable) {
+                e.currentTarget.style.opacity = '0.85';
+                e.currentTarget.style.borderColor = 'var(--line-2)';
+              }
+            }}
+          >
+            {player && player.asset ? (
+              <>
+                <div className="display num" style={{ fontSize: 12, letterSpacing: '-0.03em' }}>
+                  {player.asset.symbol}
+                </div>
+                <div
+                  className="mono"
+                  style={{
+                    fontSize: 9,
+                    color: player.asset.dayChangePercent >= 0 ? 'var(--pitch)' : 'var(--ref-red)',
+                    fontWeight: 600,
+                  }}
+                >
+                  {player.asset.dayChangePercent >= 0 ? '+' : ''}
+                  {player.asset.dayChangePercent.toFixed(1)}%
+                </div>
+              </>
+            ) : (
+              <div className="kicker" style={{ fontSize: 8 }}>EMPTY</div>
+            )}
+          </button>
+        ))}
+      </div>
     </div>
   );
 };

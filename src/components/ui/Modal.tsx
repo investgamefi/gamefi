@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Icon } from '@/components/stadium/Icon';
 
@@ -30,6 +30,16 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   size = 'md',
 }) => {
+  /* Track viewport so the modal can render full-screen on phones
+     (≤ sm breakpoint = 640px) and centered card on tablet+desktop. */
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -49,7 +59,7 @@ export const Modal: React.FC<ModalProps> = ({
       {isOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ padding: 16 }}
+          style={{ padding: isMobile ? 0 : 16 }}
         >
           {/* Backdrop — ink with light grain so it reads as the stadium night sky */}
           <motion.div
@@ -66,7 +76,7 @@ export const Modal: React.FC<ModalProps> = ({
             }}
           />
 
-          {/* Panel */}
+          {/* Panel — full-screen on phones, centred card on ≥sm */}
           <motion.div
             initial={{ opacity: 0, scale: 0.96, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -74,14 +84,16 @@ export const Modal: React.FC<ModalProps> = ({
             transition={{ type: 'spring', duration: 0.3 }}
             className="relative w-full stadium-card flex flex-col"
             style={{
-              maxWidth: SIZE_MAX_WIDTH[size],
-              maxHeight: '90vh',
+              maxWidth: isMobile ? '100%' : SIZE_MAX_WIDTH[size],
+              maxHeight: isMobile ? '100vh' : '90vh',
+              height: isMobile ? '100vh' : undefined,
               background: 'var(--surface)',
-              border: '1px solid var(--line)',
-              borderRadius: 12,
+              border: isMobile ? 'none' : '1px solid var(--line)',
+              borderRadius: isMobile ? 0 : 12,
               overflow: 'hidden',
-              boxShadow:
-                '0 1px 0 rgba(0,0,0,0.04), 0 30px 80px -20px rgba(0,0,0,0.6)',
+              boxShadow: isMobile
+                ? 'none'
+                : '0 1px 0 rgba(0,0,0,0.04), 0 30px 80px -20px rgba(0,0,0,0.6)',
             }}
           >
             {/* Header */}

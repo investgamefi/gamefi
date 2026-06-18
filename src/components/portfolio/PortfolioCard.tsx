@@ -128,9 +128,25 @@ export const PortfolioCard: React.FC<PortfolioCardProps> = ({
                 </div>
               )}
             </div>
-            <span className="pill pill-pitch" style={{ flexShrink: 0 }}>
-              {portfolio.formation}
-            </span>
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
+              {portfolio.isSnapshot && (
+                <span
+                  className="pill"
+                  style={{
+                    background: 'oklch(0.83 0.18 90 / 0.16)',
+                    color: 'oklch(0.55 0.18 80)',
+                    border: '1px solid oklch(0.83 0.18 90 / 0.4)',
+                    fontSize: 9,
+                  }}
+                  title="Last weekend's lineup — owner's live moves are hidden until next snapshot"
+                >
+                  SNAPSHOT
+                </span>
+              )}
+              <span className="pill pill-pitch">
+                {portfolio.formation}
+              </span>
+            </div>
           </div>
 
           {showUser && owner && (

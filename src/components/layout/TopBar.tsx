@@ -14,7 +14,7 @@ interface TopBarProps {
 }
 
 export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, sidebarCollapsed }) => {
-  const { currentUser, logout, notifications } = useStore();
+  const { currentUser, logout, notifications, seasonState } = useStore();
   const { resolvedTheme, setTheme } = useTheme();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -72,8 +72,42 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, sidebarCollapsed })
             <span className="live-dot" /> MARKET OPEN
           </span>
 
+          {/* Season window pills — only render when seasonState loaded and a
+             window is open. Mirror the LIVE/MARKET OPEN pill style so the
+             header reads as one row of status badges. */}
+          {seasonState?.isTransferWindowOpen && (
+            <span
+              className="pill pill-pitch hidden sm:inline-flex"
+              style={{
+                flexShrink: 0,
+                background: 'oklch(0.72 0.21 145 / 0.16)',
+                color: 'var(--pitch)',
+                border: '1px solid oklch(0.72 0.21 145 / 0.35)',
+              }}
+              title="Quarterly transfer window: sign up to 5 new players for 100 XP each"
+            >
+              <span
+                className="live-dot"
+                style={{
+                  background: 'var(--pitch)',
+                  boxShadow: '0 0 0 0 var(--pitch)',
+                }}
+              />
+              TRANSFER · Q{seasonState.currentQuarter}
+            </span>
+          )}
+          {seasonState?.isWeekendWindowOpen && (
+            <span
+              className="pill pill-whistle hidden md:inline-flex"
+              style={{ flexShrink: 0 }}
+              title="Weekend swap window open: sub up to 4 starters with bench for 25 XP each"
+            >
+              WEEKEND · 4 SUBS
+            </span>
+          )}
+
           <span
-            className="kicker hidden md:inline-flex"
+            className="kicker hidden lg:inline-flex"
             style={{ alignItems: 'center', gap: 8, color: 'var(--text-mute)' }}
           >
             MATCHDAY · {new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase()}

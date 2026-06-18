@@ -19,7 +19,18 @@ import {
 } from 'recharts';
 import { useStore } from '@/store/useStore';
 import { AppLayout, FormationField, AssetSelector, Modal, DateRangePicker } from '@/components';
-import { Position, PortfolioPlayer, Portfolio } from '@/types';
+import {
+  Position,
+  PortfolioPlayer,
+  Portfolio,
+  AllocationStrategy,
+  SeasonState,
+  FORMATIONS,
+  WEEKEND_SUB_MAX_PER_WEEKEND,
+  WEEKEND_SUB_COST_XP,
+  QUARTERLY_TRANSFER_COST_XP,
+  QUARTERLY_TRANSFER_MAX_PER_QUARTER,
+} from '@/types';
 import {
   formatCurrency,
   formatPercent,
@@ -81,6 +92,9 @@ export default function PortfolioDetailPage() {
     likePortfolio,
     clonePortfolio,
     deletePortfolio,
+    seasonState,
+    weekendSwap,
+    quarterlyTransfer,
   } = useStore();
 
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
@@ -97,12 +111,33 @@ export default function PortfolioDetailPage() {
   // Owner info kept here so the title strip can show "@username"
   const [owner, setOwner] = useState<{ username: string; avatar: string } | null>(null);
 
+  /* Squad sub-tab: Starting XI vs Bench. Local to the page so it
+     doesn't interfere with the main Lineup/Performance/Holdings/Tactics
+     tabs above. */
+  const [squadView, setSquadView] = useState<'starting' | 'bench'>('starting');
+
+  /* Sub modal: pick a bench player to swap in for the highlighted
+     starter. Open when subStarter is set; closed when null. */
+  const [subStarter, setSubStarter] = useState<PortfolioPlayer | null>(null);
+  const [subError, setSubError] = useState<string | null>(null);
+  const [subBusy, setSubBusy] = useState(false);
+
+  /* Transfer (quarterly) flow: when set, AssetSelector opens in signingMode
+     so the user picks a replacement for the outgoing player and chooses
+     inherit/split. Separate from the regular position-click flow. */
+  const [transferOut, setTransferOut] = useState<PortfolioPlayer | null>(null);
+  const [transferError, setTransferError] = useState<string | null>(null);
+
   useEffect(() => { loadData(); }, [loadData]);
 
   useEffect(() => {
     const fetchPortfolio = async () => {
       try {
-        const res = await fetch(`/api/portfolios?id=${portfolioId}`);
+        /* Pass viewerId so the API can apply the F7 privacy gate:
+           non-owner viewers receive the last weekend's snapshot rather
+           than the owner's in-progress squad. */
+        const viewerQs = currentUser?.id ? `&viewerId=${currentUser.id}` : '';
+        const res = await fetch(`/api/portfolios?id=${portfolioId}${viewerQs}`);
         const data = await res.json();
         if (data.success && data.portfolios?.length > 0) {
           setPortfolio(data.portfolios[0]);
@@ -112,7 +147,7 @@ export default function PortfolioDetailPage() {
       }
     };
     fetchPortfolio();
-  }, [portfolioId]);
+  }, [portfolioId, currentUser?.id]);
 
   useEffect(() => {
     const fetchOwner = async () => {
@@ -434,6 +469,57 @@ export default function PortfolioDetailPage() {
           )}
         </div>
 
+        {/* ===== Snapshot privacy banner ===== */}
+        {portfolio.isSnapshot && (
+          <div
+            className="stadium-card"
+            style={{
+              padding: '10px 14px',
+              background: 'oklch(0.83 0.18 90 / 0.12)',
+              borderColor: 'oklch(0.83 0.18 90 / 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              flexWrap: 'wrap',
+            }}
+          >
+            <span
+              className="pill"
+              style={{
+                background: 'oklch(0.83 0.18 90 / 0.2)',
+                color: 'oklch(0.55 0.18 80)',
+                border: '1px solid oklch(0.83 0.18 90 / 0.5)',
+                fontSize: 9,
+                flexShrink: 0,
+              }}
+            >
+              SNAPSHOT
+            </span>
+            <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', flex: 1 }}>
+              VIEWING LAST WEEKEND&apos;S LINEUP · GW {portfolio.snapshotGameweek ?? '?'} — owner&apos;s
+              in-progress moves are hidden until next Friday 4pm ET.
+            </div>
+          </div>
+        )}
+        {portfolio.noSnapshotAvailable && (
+          <div
+            className="stadium-card"
+            style={{
+              padding: '10px 14px',
+              background: 'var(--surface-2)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+            }}
+          >
+            <Icon.Whistle size={14} style={{ color: 'var(--text-mute)', flexShrink: 0 }} />
+            <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+              This manager&apos;s first snapshot is pending — full lineup visible after next
+              Friday 4pm ET close.
+            </div>
+          </div>
+        )}
+
         {/* ===== Tabs ===== */}
         <div
           className="flex"
@@ -519,6 +605,13 @@ export default function PortfolioDetailPage() {
                     onPositionClick={handlePositionClick}
                     isEditable={isOwner}
                     variant={pitchVariant}
+                    showBench={isOwner && portfolio.players.some((p) => p.isBench)}
+                    onBenchClick={(player) => {
+                      /* Bench click — switch sub view so the table view
+                         below scrolls to the bench list and the user can
+                         tap Sub On there. Avoids two competing modals. */
+                      setSquadView('bench');
+                    }}
                   />
                 </div>
 
@@ -691,6 +784,48 @@ export default function PortfolioDetailPage() {
                 )}
               </div>
             </div>
+
+            {/* Squad Roster — Starting XI / Bench tabs with sub & transfer
+                actions. Only shown for the owner (read-only viewers get
+                the pitch + holdings table elsewhere). */}
+            {isOwner && (
+              <>
+                {transferError && (
+                  <div
+                    className="stadium-card"
+                    style={{
+                      padding: '10px 12px',
+                      background: 'oklch(0.65 0.22 25 / 0.08)',
+                      borderColor: 'oklch(0.65 0.22 25 / 0.3)',
+                    }}
+                  >
+                    <p className="mono" style={{ margin: 0, fontSize: 11, color: 'var(--ref-red)' }}>
+                      {transferError}
+                    </p>
+                  </div>
+                )}
+                <SquadRoster
+                  portfolio={portfolio}
+                  squadView={squadView}
+                  onChangeView={setSquadView}
+                  seasonState={seasonState}
+                  onSubOff={(starter) => {
+                    setSubError(null);
+                    setSubStarter(starter);
+                  }}
+                  onSubOn={() => {
+                    /* When the user taps "Sub on" from the bench, redirect
+                       them back to Starting XI: the sub flow always starts
+                       by picking the outgoing starter. */
+                    setSquadView('starting');
+                  }}
+                  onTransferOut={(player) => {
+                    setTransferError(null);
+                    setTransferOut(player);
+                  }}
+                />
+              </>
+            )}
 
             {/* Fundamental metrics row at the bottom of the Lineup tab */}
             {performance && (
@@ -1055,6 +1190,170 @@ export default function PortfolioDetailPage() {
         position={selectedPosition?.position || null}
         currentAsset={selectedPosition?.player.asset || null}
       />
+
+      {/* Quarterly transfer: AssetSelector in signingMode for an outgoing
+          player. Closes itself; success/error are reported via toast-like
+          inline error on the SquadRoster card. */}
+      <AssetSelector
+        isOpen={!!transferOut}
+        onClose={() => setTransferOut(null)}
+        signingMode
+        outgoingAllocation={transferOut?.allocation}
+        position={
+          /* Re-derive the Position object so the modal's risk pill /
+             title block can render. */
+          transferOut
+            ? FORMATIONS_FOR_PORTFOLIO(portfolio).find(
+                (pos) => pos.id === transferOut.positionId,
+              ) ?? null
+            : null
+        }
+        currentAsset={transferOut?.asset ?? null}
+        onSelect={async (asset, strategy) => {
+          if (!asset || !transferOut || !transferOut.asset) {
+            setTransferOut(null);
+            return;
+          }
+          const result = await quarterlyTransfer(
+            portfolio.id,
+            transferOut.asset.symbol,
+            asset.symbol,
+            (strategy ?? 'inherit') as AllocationStrategy,
+            asset,
+          );
+          if (!result.success) {
+            setTransferError(result.error || 'Transfer failed');
+          } else {
+            setTransferError(null);
+            /* Refresh portfolio after server mutation. */
+            const viewerQs = currentUser?.id ? `&viewerId=${currentUser.id}` : '';
+            const res = await fetch(`/api/portfolios?id=${portfolioId}${viewerQs}`);
+            const data = await res.json();
+            if (data.success && data.portfolios?.length > 0) {
+              setPortfolio(data.portfolios[0]);
+            }
+          }
+          setTransferOut(null);
+        }}
+      />
+
+      {/* Weekend sub modal */}
+      <Modal
+        isOpen={!!subStarter}
+        onClose={() => setSubStarter(null)}
+        title={
+          subStarter?.asset
+            ? `Sub off ${subStarter.asset.symbol}`
+            : 'Sub off'
+        }
+        subtitle="WEEKEND WINDOW · PICK BENCH PLAYER"
+        size="md"
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {subError && (
+            <div
+              className="stadium-card"
+              style={{
+                padding: '10px 12px',
+                background: 'oklch(0.65 0.22 25 / 0.08)',
+                borderColor: 'oklch(0.65 0.22 25 / 0.3)',
+              }}
+            >
+              <p className="mono" style={{ margin: 0, fontSize: 11, color: 'var(--ref-red)' }}>
+                {subError}
+              </p>
+            </div>
+          )}
+          <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+            Pick a reserve to come on. The chosen bench player inherits the
+            starter&apos;s allocation and the starter moves to the bench. Costs
+            {' '}
+            {WEEKEND_SUB_COST_XP} XP.
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {portfolio.players
+              .filter((p) => p.isBench && p.asset)
+              .map((b) => (
+                <button
+                  key={b.positionId}
+                  type="button"
+                  disabled={subBusy}
+                  onClick={async () => {
+                    if (!subStarter?.asset || !b.asset) return;
+                    setSubBusy(true);
+                    setSubError(null);
+                    const result = await weekendSwap(
+                      portfolio.id,
+                      subStarter.asset.symbol,
+                      b.asset.symbol,
+                    );
+                    setSubBusy(false);
+                    if (!result.success) {
+                      setSubError(result.error || 'Swap failed');
+                    } else {
+                      const viewerQs = currentUser?.id ? `&viewerId=${currentUser.id}` : '';
+                      const res = await fetch(`/api/portfolios?id=${portfolioId}${viewerQs}`);
+                      const data = await res.json();
+                      if (data.success && data.portfolios?.length > 0) {
+                        setPortfolio(data.portfolios[0]);
+                      }
+                      setSubStarter(null);
+                    }
+                  }}
+                  className="stadium-card"
+                  style={{
+                    padding: '10px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    cursor: subBusy ? 'wait' : 'pointer',
+                    background: 'var(--surface)',
+                    textAlign: 'left',
+                    width: '100%',
+                  }}
+                >
+                  <span className="display num" style={{ fontSize: 14, color: 'var(--pitch)' }}>
+                    {b.asset!.symbol}
+                  </span>
+                  <span
+                    className="mono"
+                    style={{
+                      fontSize: 10,
+                      color: 'var(--text-mute)',
+                      flex: 1,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {b.asset!.name}
+                  </span>
+                  <span
+                    className="mono num"
+                    style={{
+                      fontSize: 10,
+                      color: b.asset!.dayChangePercent >= 0 ? 'var(--pitch)' : 'var(--ref-red)',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {formatPercent(b.asset!.dayChangePercent)}
+                  </span>
+                </button>
+              ))}
+            {portfolio.players.filter((p) => p.isBench && p.asset).length === 0 && (
+              <div
+                className="stadium-card"
+                style={{ padding: 16, textAlign: 'center', borderStyle: 'dashed' }}
+              >
+                <div className="kicker">BENCH IS EMPTY</div>
+                <div className="mono" style={{ fontSize: 11, color: 'var(--text-mute)', marginTop: 4 }}>
+                  Sign reserves during the transfer window first.
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </Modal>
 
       {/* Share */}
       <Modal isOpen={showShareModal} onClose={() => setShowShareModal(false)} title="Share Squad" size="sm">
@@ -1497,6 +1796,297 @@ const CoachsNotes: React.FC<{
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+};
+
+/* Helper: get the canonical positions for a portfolio's formation. */
+function FORMATIONS_FOR_PORTFOLIO(p: Portfolio): Position[] {
+  return FORMATIONS[p.formation] || [];
+}
+
+/* ============================================================
+   SquadRoster — Starting XI / Bench sub-tabs with sub & transfer
+   actions. Renders only for the squad owner.
+   ============================================================ */
+const SquadRoster: React.FC<{
+  portfolio: Portfolio;
+  squadView: 'starting' | 'bench';
+  onChangeView: (v: 'starting' | 'bench') => void;
+  seasonState: SeasonState | null;
+  onSubOff: (player: PortfolioPlayer) => void;
+  onSubOn: (player: PortfolioPlayer) => void;
+  onTransferOut: (player: PortfolioPlayer) => void;
+}> = ({ portfolio, squadView, onChangeView, seasonState, onSubOff, onTransferOut }) => {
+  const starters = portfolio.players.filter((p) => !p.isBench && p.asset);
+  const bench = portfolio.players.filter((p) => p.isBench && p.asset);
+
+  const weekendOpen = !!seasonState?.isWeekendWindowOpen;
+  const transferOpen = !!seasonState?.isTransferWindowOpen;
+
+  const subDisabledReason = !weekendOpen
+    ? 'Subs open Fri 4pm ET through Mon 1am ET'
+    : undefined;
+  const transferDisabledReason = !transferOpen
+    ? `Transfer window opens GW 1, 14, 27, 40 (current GW${seasonState?.currentGameweek ?? '?'})`
+    : undefined;
+
+  const benchCount = portfolio.players.filter((p) => p.isBench).length;
+
+  return (
+    <div className="stadium-card" style={{ padding: 16 }}>
+      <div className="flex flex-wrap items-center justify-between" style={{ marginBottom: 12, gap: 10 }}>
+        <div>
+          <div className="kicker">SQUAD ROSTER</div>
+          <div
+            className="display"
+            style={{ fontSize: 16, letterSpacing: '-0.02em', marginTop: 2 }}
+          >
+            Manage Lineup
+          </div>
+        </div>
+        {/* Sub-tabs */}
+        <div className="flex" style={{ gap: 4 }}>
+          {(
+            [
+              ['starting', `Starting XI (${starters.length})`],
+              ['bench', `Bench (${benchCount})`],
+            ] as const
+          ).map(([key, label]) => {
+            const active = squadView === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => onChangeView(key)}
+                className="mono"
+                style={{
+                  padding: '6px 12px',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  background: active ? 'var(--pitch)' : 'transparent',
+                  color: active ? 'oklch(0.14 0.05 145)' : 'var(--text-dim)',
+                  border: '1px solid ' + (active ? 'var(--pitch-deep)' : 'var(--line)'),
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  minHeight: 32,
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Window status strip */}
+      <div
+        className="flex items-center"
+        style={{
+          gap: 10,
+          padding: '8px 12px',
+          marginBottom: 12,
+          background: 'var(--surface-2)',
+          borderRadius: 6,
+          border: '1px solid var(--line)',
+          flexWrap: 'wrap',
+        }}
+      >
+        <span
+          className="pill"
+          style={
+            weekendOpen
+              ? {
+                  background: 'oklch(0.72 0.21 145 / 0.16)',
+                  color: 'var(--pitch)',
+                  border: '1px solid oklch(0.72 0.21 145 / 0.35)',
+                  fontSize: 9,
+                }
+              : { fontSize: 9 }
+          }
+        >
+          WEEKEND {weekendOpen ? 'OPEN' : 'LOCKED'}
+        </span>
+        <span
+          className="pill"
+          style={
+            transferOpen
+              ? {
+                  background: 'oklch(0.72 0.21 145 / 0.16)',
+                  color: 'var(--pitch)',
+                  border: '1px solid oklch(0.72 0.21 145 / 0.35)',
+                  fontSize: 9,
+                }
+              : { fontSize: 9 }
+          }
+        >
+          TRANSFERS {transferOpen ? `OPEN · Q${seasonState?.currentQuarter}` : 'LOCKED'}
+        </span>
+        <span
+          className="mono"
+          style={{
+            fontSize: 10,
+            color: 'var(--text-mute)',
+            marginLeft: 'auto',
+            letterSpacing: '0.06em',
+          }}
+        >
+          SUB {WEEKEND_SUB_COST_XP} XP · TRANSFER {QUARTERLY_TRANSFER_COST_XP} XP · CAP{' '}
+          {WEEKEND_SUB_MAX_PER_WEEKEND}/wkd · {QUARTERLY_TRANSFER_MAX_PER_QUARTER}/qtr
+        </span>
+      </div>
+
+      {/* Roster list */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {(squadView === 'starting' ? starters : bench).map((player) => (
+          <RosterRow
+            key={player.positionId}
+            player={player}
+            squadView={squadView}
+            onSubOff={() => onSubOff(player)}
+            onTransferOut={() => onTransferOut(player)}
+            subDisabledReason={subDisabledReason}
+            transferDisabledReason={transferDisabledReason}
+          />
+        ))}
+        {(squadView === 'starting' ? starters : bench).length === 0 && (
+          <div
+            className="stadium-card"
+            style={{ padding: 16, textAlign: 'center', borderStyle: 'dashed' }}
+          >
+            <div className="kicker">
+              {squadView === 'starting' ? 'NO STARTERS YET' : 'NO BENCH PLAYERS YET'}
+            </div>
+            <div className="mono" style={{ fontSize: 11, color: 'var(--text-mute)', marginTop: 4 }}>
+              {squadView === 'starting'
+                ? 'Sign players to the starting XI from the pitch above.'
+                : 'Bench players are added during quarterly transfer windows.'}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const RosterRow: React.FC<{
+  player: PortfolioPlayer;
+  squadView: 'starting' | 'bench';
+  onSubOff: () => void;
+  onTransferOut: () => void;
+  subDisabledReason?: string;
+  transferDisabledReason?: string;
+}> = ({ player, squadView, onSubOff, onTransferOut, subDisabledReason, transferDisabledReason }) => {
+  if (!player.asset) return null;
+  const positive = player.asset.dayChangePercent >= 0;
+  const subDisabled = !!subDisabledReason;
+  const transferDisabled = !!transferDisabledReason;
+
+  return (
+    <div
+      className="stadium-card"
+      style={{
+        padding: '10px 12px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        background: 'var(--surface)',
+        flexWrap: 'wrap',
+      }}
+    >
+      <span className="pill" style={{ padding: '2px 6px', fontSize: 9, flexShrink: 0 }}>
+        {player.positionId.toUpperCase()}
+      </span>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div className="flex items-center" style={{ gap: 8 }}>
+          <span className="display num" style={{ fontSize: 14, letterSpacing: '-0.02em' }}>
+            {player.asset.symbol}
+          </span>
+          <span
+            className="mono num"
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: positive ? 'var(--pitch)' : 'var(--ref-red)',
+            }}
+          >
+            {(player.asset.dayChangePercent >= 0 ? '+' : '') +
+              player.asset.dayChangePercent.toFixed(2)}
+            %
+          </span>
+        </div>
+        <div
+          className="mono"
+          style={{
+            fontSize: 10,
+            color: 'var(--text-mute)',
+            marginTop: 2,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            letterSpacing: '0.04em',
+          }}
+        >
+          {player.asset.name.toUpperCase()} · WGT {(player.allocation || 100 / 11).toFixed(1)}%
+        </div>
+      </div>
+      <div className="flex" style={{ gap: 6, flexShrink: 0 }}>
+        {squadView === 'starting' && (
+          <button
+            type="button"
+            onClick={onSubOff}
+            disabled={subDisabled}
+            title={subDisabledReason || `Sub off ${player.asset.symbol} (25 XP)`}
+            className="stadium-btn stadium-btn-ghost"
+            style={{
+              padding: '6px 10px',
+              fontSize: 11,
+              opacity: subDisabled ? 0.45 : 1,
+              cursor: subDisabled ? 'not-allowed' : 'pointer',
+              minHeight: 32,
+            }}
+          >
+            Sub off →
+          </button>
+        )}
+        {squadView === 'bench' && (
+          <span
+            className="mono"
+            style={{
+              padding: '6px 10px',
+              fontSize: 10,
+              color: 'var(--text-mute)',
+              letterSpacing: '0.06em',
+            }}
+            title="To sub this player on, open Starting XI and tap 'Sub off' on the player you want to bench."
+          >
+            ↑ ON BENCH
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={onTransferOut}
+          disabled={transferDisabled}
+          title={
+            transferDisabledReason ||
+            `Transfer out ${player.asset.symbol} (${QUARTERLY_TRANSFER_COST_XP} XP)`
+          }
+          className="stadium-btn stadium-btn-ghost"
+          style={{
+            padding: '6px 10px',
+            fontSize: 11,
+            opacity: transferDisabled ? 0.45 : 1,
+            cursor: transferDisabled ? 'not-allowed' : 'pointer',
+            minHeight: 32,
+            color: transferDisabled ? undefined : 'var(--whistle)',
+            borderColor: transferDisabled ? undefined : 'oklch(0.83 0.18 90 / 0.4)',
+          }}
+        >
+          Transfer out
+        </button>
       </div>
     </div>
   );

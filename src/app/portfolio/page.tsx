@@ -16,7 +16,14 @@ import { fetchMultiplePortfolioPerformances } from '@/hooks/usePortfolioRealPerf
 
 export default function PortfolioListPage() {
   const router = useRouter();
-  const { portfolios, createPortfolio, canCreateTeam, getTeamSlotInfo, unlockTeamSlot } = useStore();
+  const {
+    portfolios,
+    createPortfolio,
+    canCreateTeam,
+    getTeamSlotInfo,
+    unlockTeamSlot,
+    seasonState,
+  } = useStore();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState('');
   const [newPortfolioDesc, setNewPortfolioDesc] = useState('');
@@ -114,6 +121,47 @@ export default function PortfolioListPage() {
             </button>
           </div>
         </div>
+
+        {/* Transfer window banner — only when a quarterly window is
+            actually open. Mirrors the contextual banner pattern the
+            Matchday page uses for season events. */}
+        {seasonState?.isTransferWindowOpen && (
+          <div
+            className="stadium-card"
+            style={{
+              padding: '14px 18px',
+              background: 'var(--pitch-tint)',
+              borderColor: 'oklch(0.72 0.21 145 / 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              flexWrap: 'wrap',
+            }}
+          >
+            <span
+              className="live-dot"
+              style={{
+                background: 'var(--pitch)',
+                boxShadow: '0 0 0 0 var(--pitch)',
+                flexShrink: 0,
+              }}
+            />
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <div className="kicker" style={{ color: 'var(--pitch)' }}>
+                TRANSFER WINDOW OPEN · Q{seasonState.currentQuarter}
+              </div>
+              <div
+                className="display"
+                style={{ fontSize: 14, letterSpacing: '-0.01em', marginTop: 4 }}
+              >
+                Sign up to 5 new players for 100 XP each. Tap any squad to manage transfers.
+              </div>
+            </div>
+            <span className="mono num" style={{ fontSize: 11, color: 'var(--text-mute)' }}>
+              GW{seasonState.currentGameweek}/52
+            </span>
+          </div>
+        )}
 
         {/* Aggregate strip */}
         {totals && (
