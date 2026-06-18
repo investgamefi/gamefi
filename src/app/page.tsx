@@ -275,10 +275,11 @@ export default function Home() {
         />
 
         <div
+          className="landing-hero-grid"
           style={{
             position: 'relative',
             display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1.3fr) minmax(0, 1fr)',
+            gridTemplateColumns: 'minmax(0, 1fr)',
             gap: 48,
             alignItems: 'center',
           }}

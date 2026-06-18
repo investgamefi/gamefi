@@ -254,8 +254,9 @@ export default function MarketPage() {
           </div>
         )}
 
-        {/* Roster table */}
+        {/* Roster table — wrapped in horizontal-scroll on phones */}
         <div className="stadium-card" style={{ overflow: 'hidden' }}>
+          <div className="stadium-table-scroll">
           <div
             style={{
               display: 'grid',
@@ -264,6 +265,7 @@ export default function MarketPage() {
               background: 'var(--surface-2)',
               borderBottom: '1px solid var(--line)',
               gap: 12,
+              minWidth: 820,
             }}
           >
             <SortHeader label="TICKER · NAME" active={sortBy === 'name'} order={sortOrder} onClick={() => handleSort('name')} />
@@ -305,6 +307,7 @@ export default function MarketPage() {
                     borderTop: i === 0 ? 'none' : '1px solid var(--line)',
                     gap: 12,
                     transition: 'background .12s',
+                    minWidth: 820,
                   }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-2)')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
@@ -411,6 +414,7 @@ export default function MarketPage() {
                 </div>
               );
             })}
+          </div>
         </div>
       </div>
     </AppLayout>

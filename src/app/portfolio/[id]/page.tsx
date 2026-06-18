@@ -563,6 +563,7 @@ export default function PortfolioDetailPage() {
         {activeTab === 'lineup' && (
           <>
             <div
+              className="squad-detail-grid"
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 380px)',
@@ -1029,6 +1030,7 @@ export default function PortfolioDetailPage() {
         {/* ===== HOLDINGS TAB ===== */}
         {activeTab === 'transfers' && (
           <div className="stadium-card" style={{ overflow: 'hidden' }}>
+            <div className="stadium-table-scroll">
             <div
               style={{
                 display: 'grid',
@@ -1037,6 +1039,7 @@ export default function PortfolioDetailPage() {
                 background: 'var(--surface-2)',
                 borderBottom: '1px solid var(--line)',
                 gap: 12,
+                minWidth: 720,
               }}
             >
               {['#', 'POS', 'TICKER · NAME', 'SECTOR', 'WEIGHT', 'PRICE', 'TODAY'].map((h, i) => (
@@ -1076,6 +1079,7 @@ export default function PortfolioDetailPage() {
                         alignItems: 'center',
                         gap: 12,
                         borderTop: i === 0 ? 'none' : '1px solid var(--line)',
+                        minWidth: 720,
                       }}
                     >
                       <div className="display num" style={{ fontSize: 14, color: 'var(--text-dim)' }}>
@@ -1144,12 +1148,14 @@ export default function PortfolioDetailPage() {
                   );
                 })
             )}
+            </div>
           </div>
         )}
 
         {/* ===== TACTICS TAB ===== */}
         {activeTab === 'tactics' && (
           <div
+            className="squad-detail-grid"
             style={{
               display: 'grid',
               gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 380px)',

@@ -356,11 +356,12 @@ export default function DashboardPage() {
           />
         </section>
 
-        {/* Body grid: My Squads + sidebar */}
+        {/* Body grid: My Squads + sidebar — stacks on phones, splits at ≥ md */}
         <div
+          className="dash-body-grid"
           style={{
             display: 'grid',
-            gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)',
+            gridTemplateColumns: 'minmax(0, 1fr)',
             gap: 18,
           }}
         >

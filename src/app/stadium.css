@@ -227,3 +227,40 @@ html.dark {
   background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.35) 100%);
   pointer-events: none;
 }
+
+/* ============================================================
+   Responsive helpers — promote single-column layouts at ≥ md.
+   These classes are referenced inline by pages that need the
+   2-up / 3-up split on desktop but a stacked view on phone.
+   ============================================================ */
+
+/* Dashboard body: stacked on phone, 2fr/1fr split on ≥ md. */
+@media (min-width: 768px) {
+  .dash-body-grid { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) !important; }
+}
+
+/* Landing hero: stacked on phone, 1.3fr/1fr split on ≥ md. */
+@media (min-width: 768px) {
+  .landing-hero-grid { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) !important; }
+}
+
+/* Portfolio detail "pitch + side panel" grid stacks on phone. */
+@media (max-width: 767px) {
+  .squad-detail-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+/* Horizontal scroll fallback for wide tables on phones — wrap a
+   table with .stadium-table-scroll to get a swipeable region
+   instead of overflowing the viewport. */
+.stadium-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Tap-target minimum: ensures pills and ghost buttons hit 44px on
+   touch viewports. Opt-in via class to avoid bloating compact UI. */
+@media (max-width: 767px) {
+  .tap44 { min-height: 44px; min-width: 44px; }
+}
