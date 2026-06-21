@@ -50,7 +50,10 @@ export const Input: React.FC<InputProps> = ({
           </div>
         )}
         <input
-          className={className}
+          /* `stadium-input` class lets the global CSS bump font-size to
+             16px on <sm so iOS Safari skips its zoom-on-focus
+             behaviour without enlarging the desktop UI. */
+          className={['stadium-input', className].filter(Boolean).join(' ')}
           style={{
             width: '100%',
             padding: '10px 14px',

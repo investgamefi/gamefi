@@ -264,3 +264,16 @@ html.dark {
 @media (max-width: 767px) {
   .tap44 { min-height: 44px; min-width: 44px; }
 }
+
+/* iOS Safari auto-zooms any input/textarea/select with a computed
+   font-size below 16px on focus. Bump every text-entry field to 16px
+   on phones (<sm = 640px) to suppress the zoom. Desktop keeps the
+   tighter visual hierarchy. Applies via class `.stadium-input` and to
+   any bare textarea/select inside the app. */
+@media (max-width: 639px) {
+  .stadium-input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
