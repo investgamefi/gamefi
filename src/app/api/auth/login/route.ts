@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyPassword } from '@/lib/auth';
 import { AuthResponse } from '@/types';
 import { supabase } from '@/lib/supabase';
+import { signSession, sessionCookieOptions } from '@/lib/session';
 
 interface LoginRequestBody {
   identifier: string; // username or email
@@ -153,10 +154,14 @@ export async function POST(request: NextRequest) {
       maxTeams: dbUser.max_teams,
     };
 
-    return NextResponse.json<AuthResponse>({
-      success: true,
-      user,
-    });
+    /* Mint a signed session token and drop it into an httpOnly
+       cookie. Middleware will decode it on subsequent requests and
+       inject x-session-user-id so API routes don't have to trust
+       body-supplied userIds. */
+    const res = NextResponse.json<AuthResponse>({ success: true, user });
+    const token = await signSession(dbUser.id);
+    res.cookies.set({ ...sessionCookieOptions(), value: token });
+    return res;
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json<AuthResponse>(

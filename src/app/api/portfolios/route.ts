@@ -229,21 +229,28 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, userId, name, description, formation, players, isPublic, tags } = body;
+    const { id, userId: bodyUserId, name, description, formation, players, isPublic, tags } = body;
 
     if (!id) {
       return NextResponse.json({ success: false, error: 'Portfolio ID required' }, { status: 400 });
     }
 
-    /* Ownership check — without session auth (separate sprint), the
-       client passes its userId in the body and we verify it matches
-       the resource owner. This stops "edit anyone's squad with curl"
-       without rebuilding the auth layer. We require userId so older
-       callers that didn't send it must be updated. */
+    /* Ownership check. The signed session cookie (decoded by middleware
+       into the x-session-user-id header) is the source of truth. We
+       still accept a body userId as a fallback for the migration
+       window but reject it if it doesn't match the session. */
+    const sessionUserId = request.headers.get('x-session-user-id');
+    const userId = sessionUserId || bodyUserId;
     if (!userId) {
       return NextResponse.json(
-        { success: false, error: 'userId required for portfolio update' },
-        { status: 400 },
+        { success: false, error: 'Unauthenticated — session required.' },
+        { status: 401 },
+      );
+    }
+    if (sessionUserId && bodyUserId && sessionUserId !== bodyUserId) {
+      return NextResponse.json(
+        { success: false, error: 'Session userId does not match request userId.' },
+        { status: 403 },
       );
     }
     {

@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { hashPassword, validatePassword, validateEmail, validateUsername } from '@/lib/auth';
 import { AuthResponse, DEFAULT_MAX_TEAMS } from '@/types';
 import { supabase } from '@/lib/supabase';
+import { signSession, sessionCookieOptions } from '@/lib/session';
 
 interface RegisterRequestBody {
   username: string;
@@ -175,10 +176,12 @@ export async function POST(request: NextRequest) {
       maxTeams: newUser.max_teams,
     };
 
-    return NextResponse.json({
-      success: true,
-      user,
-    });
+    /* Auto-login on register: drop the session cookie so the user
+       lands on /dashboard already authenticated. */
+    const res = NextResponse.json({ success: true, user });
+    const token = await signSession(newUser.id);
+    res.cookies.set({ ...sessionCookieOptions(), value: token });
+    return res;
   } catch (error) {
     console.error('Registration error:', error);
     return NextResponse.json<AuthResponse>(

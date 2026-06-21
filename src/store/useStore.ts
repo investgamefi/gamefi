@@ -235,6 +235,12 @@ export const useStore = create<AppState>((set, get) => ({
 
   logout: () => {
     setStoredSession(null);
+    /* Fire-and-forget the server-side logout so the httpOnly session
+       cookie is cleared. Don't block UI on the network response —
+       the local state reset is what the user sees. */
+    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {
+      /* network failure is fine; cookie will expire on its own TTL */
+    });
     set({
       currentUser: null,
       isAuthenticated: false,

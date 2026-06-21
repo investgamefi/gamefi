@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, requesterId, displayName, bio, avatar } = body;
+    const { id, requesterId: bodyRequester, displayName, bio, avatar } = body;
 
     if (!id) {
       return NextResponse.json({ success: false, error: 'User ID required' }, { status: 400 });
@@ -92,9 +92,17 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    /* Identity check — requesterId comes from the caller's session
-       (currently localStorage; later: signed cookie). */
-    const effectiveRequester = requesterId || id;
+    /* Identity check. Session header (signed cookie via middleware)
+       wins over body-supplied requesterId. Both must agree if both
+       are present. */
+    const sessionUserId = request.headers.get('x-session-user-id');
+    const effectiveRequester = sessionUserId || bodyRequester || id;
+    if (sessionUserId && bodyRequester && sessionUserId !== bodyRequester) {
+      return NextResponse.json(
+        { success: false, error: 'Session userId does not match request requesterId.' },
+        { status: 403 },
+      );
+    }
     if (effectiveRequester !== id) {
       return NextResponse.json(
         { success: false, error: 'Not authorized to update this user.' },
