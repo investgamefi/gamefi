@@ -98,7 +98,10 @@ export default function PortfolioDetailPage() {
   } = useStore();
 
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
-  const [selectedPosition, setSelectedPosition] = useState<{ player: PortfolioPlayer; position: Position } | null>(null);
+  /* selectedPosition.position can be null for bench slots (synthetic
+     positionId, no formation position). AssetSelector handles null
+     position by skipping its risk-tier suggestions. */
+  const [selectedPosition, setSelectedPosition] = useState<{ player: PortfolioPlayer; position: Position | null } | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showWeightsModal, setShowWeightsModal] = useState(false);
@@ -236,7 +239,45 @@ export default function PortfolioDetailPage() {
         return;
       }
     }
-    await assignAssetToPosition(portfolio.id, selectedPosition.player.positionId, asset);
+    /* Build the new players array directly and PUT it. We can't rely
+       on assignAssetToPosition here because the detail page keeps
+       `portfolio` in local React state and never pushes it into the
+       Zustand store — assignAssetToPosition would silently no-op when
+       its store lookup misses. */
+    const targetPositionId = selectedPosition.player.positionId;
+    const hasEntry = portfolio.players.some((p) => p.positionId === targetPositionId);
+    const isBenchSlot = targetPositionId.startsWith('bench-');
+    const nextPlayers = hasEntry
+      ? portfolio.players.map((p) =>
+          p.positionId === targetPositionId ? { ...p, asset } : p,
+        )
+      : [
+          ...portfolio.players,
+          {
+            positionId: targetPositionId,
+            asset,
+            allocation: isBenchSlot ? 0 : 100 / 11,
+            ...(isBenchSlot ? { isBench: true as const } : {}),
+          },
+        ];
+    try {
+      const putRes = await fetch('/api/portfolios', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: portfolio.id, players: nextPlayers }),
+      });
+      const putData = await putRes.json();
+      if (!putData.success) {
+        alert(putData.error || 'Failed to assign player.');
+        setSelectedPosition(null);
+        return;
+      }
+    } catch (e) {
+      console.error('Position-assign PUT failed:', e);
+      alert('Network error — try again.');
+      setSelectedPosition(null);
+      return;
+    }
     const res = await fetch(`/api/portfolios?id=${portfolio.id}`);
     const data = await res.json();
     if (data.success && data.portfolios?.length > 0) {
@@ -300,7 +341,10 @@ export default function PortfolioDetailPage() {
     );
   }
 
-  const filledPositions = portfolio.players.filter((p) => p.asset !== null).length;
+  /* Starter slots are what the pitch + footer hint reference. Bench
+     slots are counted separately for the bench grid header. */
+  const starterPlayers = portfolio.players.filter((p) => !p.isBench);
+  const filledPositions = starterPlayers.filter((p) => p.asset !== null).length;
 
   // Top scorers — sorted by day change for now (the design uses YTD, we don't have it cheaply)
   const topScorers = portfolio.players
@@ -640,12 +684,30 @@ export default function PortfolioDetailPage() {
                     onPositionClick={handlePositionClick}
                     isEditable={isOwner}
                     variant={pitchVariant}
-                    showBench={isOwner && portfolio.players.some((p) => p.isBench)}
+                    /* Always show the bench grid for owners so they can
+                       see and fill empty reserve slots from the pitch
+                       view, not only via /sign. */
+                    showBench={isOwner}
                     onBenchClick={(player) => {
                       /* Bench click — switch sub view so the table view
                          below scrolls to the bench list and the user can
                          tap Sub On there. Avoids two competing modals. */
                       setSquadView('bench');
+                    }}
+                    onBenchEmpty={(benchPositionId) => {
+                      /* Clicking an empty bench tile opens AssetSelector
+                         for that synthetic positionId — same flow as
+                         clicking an empty starter position, just with
+                         a null position (no risk-tier suggestions). */
+                      setSelectedPosition({
+                        player: {
+                          positionId: benchPositionId,
+                          asset: null,
+                          allocation: 0,
+                          isBench: true,
+                        },
+                        position: null,
+                      });
                     }}
                   />
                 </div>

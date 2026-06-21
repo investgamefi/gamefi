@@ -27,6 +27,10 @@ interface FormationFieldProps {
   showBench?: boolean;
   /** Click handler for bench chips — fired when a bench slot is tapped. */
   onBenchClick?: (player: PortfolioPlayer) => void;
+  /** Click handler for empty bench tiles. Receives the synthetic
+      positionId so the parent can launch its AssetSelector against
+      that exact bench slot. */
+  onBenchEmpty?: (benchPositionId: string) => void;
 }
 
 const DEFAULT_ALLOCATION = 100 / 11;
@@ -336,6 +340,7 @@ export const FormationField: React.FC<FormationFieldProps> = ({
   variant = 'stadium',
   showBench = false,
   onBenchClick,
+  onBenchEmpty,
 }) => {
   const positions = FORMATIONS[portfolio.formation];
   /* Split players into starters and bench. The bench flag is opt-in: any
@@ -499,6 +504,7 @@ export const FormationField: React.FC<FormationFieldProps> = ({
       <BenchGrid
         bench={benchPlayers}
         onBenchClick={onBenchClick}
+        onBenchEmpty={onBenchEmpty}
         isEditable={isEditable}
       />
     </div>
@@ -511,12 +517,22 @@ export const FormationField: React.FC<FormationFieldProps> = ({
 const BenchGrid: React.FC<{
   bench: PortfolioPlayer[];
   onBenchClick?: (player: PortfolioPlayer) => void;
+  /* Click handler for EMPTY bench tiles. Receives the synthetic
+     positionId (e.g. "bench-7") so the parent can spin up an
+     AssetSelector for that exact slot. */
+  onBenchEmpty?: (benchPositionId: string) => void;
   isEditable?: boolean;
-}> = ({ bench, onBenchClick, isEditable }) => {
+}> = ({ bench, onBenchClick, onBenchEmpty, isEditable }) => {
   /* Pad bench up to 11 slots so the grid always reads as a full
-     reserves row even when the user hasn't filled every spot yet. */
-  const slots: (PortfolioPlayer | null)[] = [...bench];
-  while (slots.length < 11) slots.push(null);
+     reserves row even when the user hasn't filled every spot yet.
+     Each padding entry carries the synthetic positionId the rest of
+     the system already uses for bench slots ("bench-N"). */
+  const slots: { player: PortfolioPlayer | null; benchPositionId: string }[] = bench.map(
+    (p) => ({ player: p, benchPositionId: p.positionId }),
+  );
+  while (slots.length < 11) {
+    slots.push({ player: null, benchPositionId: `bench-${slots.length + 1}` });
+  }
 
   return (
     <div
@@ -540,62 +556,85 @@ const BenchGrid: React.FC<{
           gap: 8,
         }}
       >
-        {slots.map((player, i) => (
-          <button
-            key={player?.positionId ?? `bench-empty-${i}`}
-            type="button"
-            onClick={() => player && isEditable && onBenchClick?.(player)}
-            disabled={!player || !isEditable}
-            style={{
-              minHeight: 56,
-              padding: 6,
-              background: player ? 'var(--surface)' : 'transparent',
-              border: '1px dashed ' + (player ? 'var(--line-2)' : 'var(--line)'),
-              borderRadius: 6,
-              cursor: player && isEditable ? 'pointer' : 'default',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 2,
-              opacity: player ? 0.85 : 0.45,
-              transition: 'opacity .15s, border-color .15s',
-            }}
-            onMouseEnter={(e) => {
-              if (player && isEditable) {
-                e.currentTarget.style.opacity = '1';
-                e.currentTarget.style.borderColor = 'var(--pitch)';
+        {slots.map(({ player, benchPositionId }, i) => {
+          const isFilled = !!player?.asset;
+          const isClickable =
+            isEditable && (isFilled ? !!onBenchClick : !!onBenchEmpty);
+          return (
+            <button
+              key={benchPositionId ?? `bench-empty-${i}`}
+              type="button"
+              onClick={() => {
+                if (!isEditable) return;
+                if (player && isFilled) onBenchClick?.(player);
+                else onBenchEmpty?.(benchPositionId);
+              }}
+              disabled={!isClickable}
+              title={
+                isFilled
+                  ? `View ${player?.asset?.symbol} on the bench`
+                  : isEditable
+                  ? 'Sign a player into this reserve slot'
+                  : undefined
               }
-            }}
-            onMouseLeave={(e) => {
-              if (player && isEditable) {
-                e.currentTarget.style.opacity = '0.85';
-                e.currentTarget.style.borderColor = 'var(--line-2)';
-              }
-            }}
-          >
-            {player && player.asset ? (
-              <>
-                <div className="display num" style={{ fontSize: 12, letterSpacing: '-0.03em' }}>
-                  {player.asset.symbol}
-                </div>
-                <div
-                  className="mono"
-                  style={{
-                    fontSize: 9,
-                    color: player.asset.dayChangePercent >= 0 ? 'var(--pitch)' : 'var(--ref-red)',
-                    fontWeight: 600,
-                  }}
-                >
-                  {player.asset.dayChangePercent >= 0 ? '+' : ''}
-                  {player.asset.dayChangePercent.toFixed(1)}%
-                </div>
-              </>
-            ) : (
-              <div className="kicker" style={{ fontSize: 8 }}>EMPTY</div>
-            )}
-          </button>
-        ))}
+              style={{
+                minHeight: 56,
+                padding: 6,
+                background: isFilled ? 'var(--surface)' : 'transparent',
+                border: '1px dashed ' + (isFilled ? 'var(--line-2)' : 'var(--line)'),
+                borderRadius: 6,
+                cursor: isClickable ? 'pointer' : 'default',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 2,
+                opacity: isFilled ? 0.85 : isClickable ? 0.7 : 0.45,
+                transition: 'opacity .15s, border-color .15s',
+              }}
+              onMouseEnter={(e) => {
+                if (isClickable) {
+                  e.currentTarget.style.opacity = '1';
+                  e.currentTarget.style.borderColor = 'var(--pitch)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (isClickable) {
+                  e.currentTarget.style.opacity = isFilled ? '0.85' : '0.7';
+                  e.currentTarget.style.borderColor = isFilled ? 'var(--line-2)' : 'var(--line)';
+                }
+              }}
+            >
+              {isFilled && player?.asset ? (
+                <>
+                  <div className="display num" style={{ fontSize: 12, letterSpacing: '-0.03em' }}>
+                    {player.asset.symbol}
+                  </div>
+                  <div
+                    className="mono"
+                    style={{
+                      fontSize: 9,
+                      color: player.asset.dayChangePercent >= 0 ? 'var(--pitch)' : 'var(--ref-red)',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {player.asset.dayChangePercent >= 0 ? '+' : ''}
+                    {player.asset.dayChangePercent.toFixed(1)}%
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="kicker" style={{ fontSize: 8 }}>EMPTY</div>
+                  {isEditable && onBenchEmpty && (
+                    <div className="mono" style={{ fontSize: 8, color: 'var(--text-mute)', letterSpacing: '0.08em', marginTop: 1 }}>
+                      + SIGN
+                    </div>
+                  )}
+                </>
+              )}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
