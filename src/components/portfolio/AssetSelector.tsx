@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Asset, Position, POSITION_RISK_MAP, RiskLevel, getAssetRiskLevel, AllocationStrategy } from '@/types';
+import { Asset, Position, POSITION_RISK_MAP, RiskLevel, getAssetRiskLevel } from '@/types';
 import { MOCK_ASSETS, SECTORS, addExternalAsset } from '@/data/assets';
 import { formatCurrency, formatPercent } from '@/lib/utils';
 import { Input, Modal } from '@/components/ui';
@@ -20,11 +20,11 @@ interface AssetSelectorProps {
   isOpen: boolean;
   onClose: () => void;
   /* Default mode: just returns the picked asset (or null to release).
-     In signingMode the caller passes the allocation strategy too, so the
-     quarterly-transfer flow knows whether the new player inherits the
-     outgoing player's weight or whether the weight gets split across
-     other starters. */
-  onSelect: (asset: Asset | null, strategy?: AllocationStrategy) => void;
+     In signingMode the modal shows a small "signing" notice explaining
+     that the new player takes the outgoing player's slot/weight (the
+     allocation strategy used to live here but moved to the Sub Off
+     modal — transfer always inherits). */
+  onSelect: (asset: Asset | null) => void;
   position: Position | null;
   currentAsset: Asset | null;
   /* signingMode = true changes the modal into the quarterly-transfer
@@ -50,8 +50,6 @@ export const AssetSelector: React.FC<AssetSelectorProps> = ({
   const [selectedSector, setSelectedSector] = useState<string>('All');
   const [selectedType, setSelectedType] = useState<string>('All');
   const [showSuggestedOnly, setShowSuggestedOnly] = useState(false);
-  const [strategy, setStrategy] = useState<AllocationStrategy>('inherit');
-
   const { results: searchResults, isLoading, error, searchTerm, setSearchTerm } = useAssetSearch('');
 
   const positionRiskLevel = position ? POSITION_RISK_MAP[position.row] : null;
@@ -83,7 +81,7 @@ export const AssetSelector: React.FC<AssetSelectorProps> = ({
     const isExternal = !MOCK_ASSETS.some((a) => a.id === asset.id);
     if (isExternal) addExternalAsset(asset);
 
-    onSelect(asset, signingMode ? strategy : undefined);
+    onSelect(asset);
     onClose();
     setSearchTerm('');
     setSelectedSector('All');
@@ -104,39 +102,22 @@ export const AssetSelector: React.FC<AssetSelectorProps> = ({
       size="lg"
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {/* Signing strategy chooser — only shown for quarterly transfers.
-            Decides how the outgoing player's allocation is handled when
-            the new signing arrives. */}
-        {signingMode && (
+        {/* Transfer-in note — in signingMode the new player simply takes
+            the outgoing player's slot and weight. Allocation re-balancing
+            happens on Sub Off (weekend), not here. */}
+        {signingMode && outgoingAllocation !== undefined && (
           <div
             className="stadium-card"
             style={{
-              padding: '12px 14px',
+              padding: '10px 14px',
               background: 'var(--pitch-tint)',
               borderColor: 'oklch(0.72 0.21 145 / 0.3)',
             }}
           >
-            <div className="kicker" style={{ color: 'var(--pitch)', marginBottom: 10 }}>
-              ALLOCATION STRATEGY
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <SigningRadio
-                checked={strategy === 'inherit'}
-                onClick={() => setStrategy('inherit')}
-                label="Inherit"
-                desc={
-                  outgoingAllocation !== undefined
-                    ? `New player takes the outgoing player's allocation (${outgoingAllocation.toFixed(1)}%)`
-                    : "New player takes the outgoing player's allocation"
-                }
-              />
-              <SigningRadio
-                checked={strategy === 'split'}
-                onClick={() => setStrategy('split')}
-                label="Split"
-                desc="Outgoing allocation redistributes proportionally across other starters; new player starts at 0%"
-              />
-            </div>
+            <div className="kicker" style={{ color: 'var(--pitch)' }}>SIGNING</div>
+            <p className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', margin: '4px 0 0', lineHeight: 1.5 }}>
+              The new player takes the outgoing player&apos;s slot at {outgoingAllocation.toFixed(1)}%. To rebalance weights, use Sub off after the weekend opens.
+            </p>
           </div>
         )}
 
@@ -537,52 +518,6 @@ export const AssetSelector: React.FC<AssetSelectorProps> = ({
     </Modal>
   );
 };
-
-const SigningRadio: React.FC<{
-  checked: boolean;
-  onClick: () => void;
-  label: string;
-  desc: string;
-}> = ({ checked, onClick, label, desc }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    style={{
-      display: 'flex',
-      alignItems: 'flex-start',
-      gap: 10,
-      padding: '8px 10px',
-      background: checked ? 'var(--surface)' : 'transparent',
-      border: '1px solid ' + (checked ? 'var(--pitch)' : 'var(--line)'),
-      borderRadius: 6,
-      cursor: 'pointer',
-      textAlign: 'left',
-      width: '100%',
-      color: 'inherit',
-    }}
-  >
-    <span
-      aria-hidden
-      style={{
-        width: 14,
-        height: 14,
-        borderRadius: '50%',
-        border: '2px solid ' + (checked ? 'var(--pitch)' : 'var(--line-2)'),
-        background: checked ? 'var(--pitch)' : 'transparent',
-        flexShrink: 0,
-        marginTop: 2,
-      }}
-    />
-    <div style={{ minWidth: 0 }}>
-      <div className="display" style={{ fontSize: 13, letterSpacing: '-0.01em' }}>
-        {label}
-      </div>
-      <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4 }}>
-        {desc}
-      </div>
-    </div>
-  </button>
-);
 
 const StadiumSelect: React.FC<{
   value: string;

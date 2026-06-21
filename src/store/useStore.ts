@@ -118,6 +118,7 @@ interface AppState {
     portfolioId: string,
     starterSymbol: string,
     benchSymbol: string,
+    allocationStrategy?: AllocationStrategy,
   ) => Promise<{ success: boolean; error?: string; swapsRemaining?: number }>;
   quarterlyTransfer: (
     portfolioId: string,
@@ -875,7 +876,7 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
 
-  weekendSwap: async (portfolioId, starterSymbol, benchSymbol) => {
+  weekendSwap: async (portfolioId, starterSymbol, benchSymbol, allocationStrategy = 'inherit') => {
     const { currentUser, refreshPortfolios } = get();
     if (!currentUser) return { success: false, error: 'Not logged in' };
     try {
@@ -887,6 +888,7 @@ export const useStore = create<AppState>((set, get) => ({
           portfolioId,
           starterSymbol,
           benchSymbol,
+          allocationStrategy,
         }),
       });
       const data = await res.json();

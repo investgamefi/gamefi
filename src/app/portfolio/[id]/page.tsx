@@ -122,6 +122,10 @@ export default function PortfolioDetailPage() {
   const [subError, setSubError] = useState<string | null>(null);
   const [subBusy, setSubBusy] = useState(false);
 
+  /* Which allocation strategy the user picked for the next sub.
+     Persists across re-opens of the sub modal within the same view. */
+  const [subStrategy, setSubStrategy] = useState<'inherit' | 'split'>('inherit');
+
   /* Transfer (quarterly) flow: when set, AssetSelector opens in signingMode
      so the user picks a replacement for the outgoing player and chooses
      inherit/split. Separate from the regular position-click flow. */
@@ -1245,16 +1249,19 @@ export default function PortfolioDetailPage() {
             : null
         }
         currentAsset={transferOut?.asset ?? null}
-        onSelect={async (asset, strategy) => {
+        onSelect={async (asset) => {
           if (!asset || !transferOut || !transferOut.asset) {
             setTransferOut(null);
             return;
           }
+          /* Transfer always inherits: the new player takes the slot
+             and weight of the outgoing player. Weight rebalancing
+             lives on Sub off, not here. */
           const result = await quarterlyTransfer(
             portfolio.id,
             transferOut.asset.symbol,
             asset.symbol,
-            (strategy ?? 'inherit') as AllocationStrategy,
+            'inherit' as AllocationStrategy,
             asset,
           );
           if (!result.success) {
@@ -1301,10 +1308,56 @@ export default function PortfolioDetailPage() {
             </div>
           )}
           <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 }}>
-            Pick a reserve to come on. The chosen bench player inherits the
-            starter&apos;s allocation and the starter moves to the bench. Costs
-            {' '}
-            {WEEKEND_SUB_COST_XP} XP.
+            Pick a reserve to come on. The starting XI always totals 100% —
+            choose how the outgoing player&apos;s {subStarter?.allocation?.toFixed(1) ?? '?'}% redistributes. Costs {WEEKEND_SUB_COST_XP} XP.
+          </div>
+
+          {/* Allocation-strategy radio — applies to this sub. */}
+          <div
+            className="stadium-card"
+            style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}
+          >
+            <div className="kicker">ALLOCATION</div>
+            <label
+              className="flex items-start"
+              style={{ gap: 8, cursor: 'pointer' }}
+            >
+              <input
+                type="radio"
+                name="sub-strategy"
+                checked={subStrategy === 'inherit'}
+                onChange={() => setSubStrategy('inherit')}
+                style={{ marginTop: 3 }}
+              />
+              <span>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 600 }}>
+                  Inherit
+                </span>
+                <span className="mono" style={{ display: 'block', fontSize: 10, color: 'var(--text-mute)', marginTop: 2 }}>
+                  Bench player takes the {subStarter?.allocation?.toFixed(1) ?? '?'}% directly. Same names rotate, weights unchanged.
+                </span>
+              </span>
+            </label>
+            <label
+              className="flex items-start"
+              style={{ gap: 8, cursor: 'pointer' }}
+            >
+              <input
+                type="radio"
+                name="sub-strategy"
+                checked={subStrategy === 'split'}
+                onChange={() => setSubStrategy('split')}
+                style={{ marginTop: 3 }}
+              />
+              <span>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 600 }}>
+                  Split
+                </span>
+                <span className="mono" style={{ display: 'block', fontSize: 10, color: 'var(--text-mute)', marginTop: 2 }}>
+                  Redistribute the {subStarter?.allocation?.toFixed(1) ?? '?'}% across the other 10 starters pro-rata. Incoming player starts at 0%.
+                </span>
+              </span>
+            </label>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {portfolio.players
@@ -1322,6 +1375,7 @@ export default function PortfolioDetailPage() {
                       portfolio.id,
                       subStarter.asset.symbol,
                       b.asset.symbol,
+                      subStrategy,
                     );
                     setSubBusy(false);
                     if (!result.success) {

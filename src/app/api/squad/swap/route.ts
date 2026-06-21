@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { getSeasonState, isWeekendWindowOpen } from '@/lib/season';
 import {
+  AllocationStrategy,
   PortfolioPlayer,
   WEEKEND_SUB_MAX_PER_WEEKEND,
   WEEKEND_SUB_COST_XP,
@@ -9,28 +10,46 @@ import {
 } from '@/types';
 
 /* POST /api/squad/swap
-   Body: { userId, portfolioId, starterSymbol, benchSymbol }
-   - validates weekend window is open
-   - validates user owns the portfolio
-   - validates per-weekend swap cap (counts weekend_swaps for this gameweek)
-   - finds the two players in portfolios.players JSON by symbol
-   - swaps starter ↔ bench: starter goes to bench at 0%, bench comes on
-     and inherits the starter's allocation
+   Body: { userId, portfolioId, starterSymbol, benchSymbol,
+           allocationStrategy?: 'inherit' | 'split' }
+   - validates weekend window + ownership + per-weekend cap
+   - allocation strategy (defaults to 'inherit'):
+       'inherit' → bench player coming on takes the starter's % directly.
+                   The starting XI's per-player weights stay the same,
+                   only the names rotate.
+       'split'   → the outgoing starter's % is redistributed pro-rata
+                   across the OTHER 10 starters; the bench player comes
+                   on at 0%. Useful when you want to deemphasize the
+                   slot without redistributing manually later.
+     Either way the on-field total stays at 100% — bench is always 0%.
    - persists portfolios.players, inserts weekend_swaps row, deducts XP
 */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { userId, portfolioId, starterSymbol, benchSymbol } = body as {
+    const {
+      userId,
+      portfolioId,
+      starterSymbol,
+      benchSymbol,
+      allocationStrategy = 'inherit',
+    } = body as {
       userId?: string;
       portfolioId?: string;
       starterSymbol?: string;
       benchSymbol?: string;
+      allocationStrategy?: AllocationStrategy;
     };
 
     if (!userId || !portfolioId || !starterSymbol || !benchSymbol) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
+        { status: 400 },
+      );
+    }
+    if (allocationStrategy !== 'inherit' && allocationStrategy !== 'split') {
+      return NextResponse.json(
+        { success: false, error: 'allocationStrategy must be "inherit" or "split"' },
         { status: 400 },
       );
     }
@@ -132,26 +151,69 @@ export async function POST(req: NextRequest) {
 
     const starter = players[starterIdx];
     const bench = players[benchIdx];
-    const inheritedAllocation = starter.allocation;
+    const outgoingAllocation = starter.allocation || 0;
 
-    // 5. Perform the swap. Bench player inherits the starter's
-    //    position + allocation; starter moves to bench at 0%.
-    const newStarter: PortfolioPlayer = {
-      ...bench,
-      positionId: starter.positionId,
-      allocation: inheritedAllocation,
-      isBench: false,
-    };
-    const newBench: PortfolioPlayer = {
-      ...starter,
-      positionId: bench.positionId,
-      allocation: 0,
-      isBench: true,
-    };
-
+    /* 5. Allocation math.
+       - 'inherit' (default): bench takes starter's %.
+       - 'split': bench comes on at 0%, starter's % is redistributed
+         pro-rata across the OTHER starters. We compute the new
+         weights here so the JSON write is atomic with the swap. */
     const updatedPlayers = [...players];
-    updatedPlayers[starterIdx] = newStarter;
-    updatedPlayers[benchIdx] = newBench;
+    if (allocationStrategy === 'inherit') {
+      updatedPlayers[starterIdx] = {
+        ...bench,
+        positionId: starter.positionId,
+        allocation: outgoingAllocation,
+        isBench: false,
+      };
+      updatedPlayers[benchIdx] = {
+        ...starter,
+        positionId: bench.positionId,
+        allocation: 0,
+        isBench: true,
+      };
+    } else {
+      // 'split' — distribute outgoingAllocation across other starters
+      const otherStarterIdxs = players
+        .map((p, i) => ({ p, i }))
+        .filter(({ p, i }) => i !== starterIdx && !p.isBench)
+        .map(({ i }) => i);
+      const otherStartersWeightTotal = otherStarterIdxs.reduce(
+        (sum, i) => sum + (players[i].allocation || 0),
+        0,
+      );
+      // Guard against /0 when all other starters are at 0% — fall
+      // back to even spread.
+      if (otherStartersWeightTotal === 0 && otherStarterIdxs.length > 0) {
+        const each = outgoingAllocation / otherStarterIdxs.length;
+        for (const i of otherStarterIdxs) {
+          updatedPlayers[i] = {
+            ...players[i],
+            allocation: (players[i].allocation || 0) + each,
+          };
+        }
+      } else {
+        for (const i of otherStarterIdxs) {
+          const w = players[i].allocation || 0;
+          updatedPlayers[i] = {
+            ...players[i],
+            allocation: w + outgoingAllocation * (w / otherStartersWeightTotal),
+          };
+        }
+      }
+      updatedPlayers[starterIdx] = {
+        ...bench,
+        positionId: starter.positionId,
+        allocation: 0,
+        isBench: false,
+      };
+      updatedPlayers[benchIdx] = {
+        ...starter,
+        positionId: bench.positionId,
+        allocation: 0,
+        isBench: true,
+      };
+    }
 
     // 6. Load current XP for the user
     const { data: dbUser, error: uErr } = await supabase
