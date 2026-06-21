@@ -816,14 +816,21 @@ export interface UserOnboarding {
   completedAt: string | null;
 }
 
+/* Updated post-stadium rewrite. Copy now matches the actual app
+   vocabulary (Squads, Matchday, Fixtures, Training) and leads with
+   "paper money" reassurance because Sarah-from-the-tester-personas
+   was visibly anxious that real money was at stake. Targets are
+   intentionally empty for now — the spotlight feature wasn't doing
+   anything useful because no element in the app had a matching
+   data-tour attribute. Future: wire data-tour to Sidebar nav items. */
 export const ONBOARDING_STEPS: OnboardingStep[] = [
-  { id: 'welcome', title: 'Welcome to Gamefi Invest!', description: 'Learn to invest by building your dream team of stocks.', target: '', position: 'bottom' },
-  { id: 'dashboard', title: 'Your Dashboard', description: 'Track your XP, level, and portfolio performance here.', target: '[data-tour="dashboard"]', position: 'bottom' },
-  { id: 'create_portfolio', title: 'Create Your First Team', description: 'Click here to build your first investment portfolio.', target: '[data-tour="create-portfolio"]', position: 'right' },
-  { id: 'formation', title: 'Choose a Formation', description: 'Different formations represent different investment strategies.', target: '[data-tour="formation"]', position: 'bottom' },
-  { id: 'add_stocks', title: 'Add Stocks to Your Team', description: 'Click on positions to add stocks. Match risk levels for best results!', target: '[data-tour="formation-field"]', position: 'left' },
-  { id: 'challenges', title: 'Challenge Others', description: 'Compete against the S&P 500 or other users to earn XP!', target: '[data-tour="challenges"]', position: 'right' },
-  { id: 'learn', title: 'Keep Learning', description: 'Visit the Learn section to improve your investing skills.', target: '[data-tour="learn"]', position: 'right' },
+  { id: 'welcome',          title: 'Welcome to Gamefi Invest',     description: 'This is a free practice league. You build squads of real stocks, the prices are real, but the money is fake — no card, no risk.', target: '', position: 'bottom' },
+  { id: 'matchday',         title: 'Your Matchday HQ',             description: 'The Matchday tab tracks your XP, level, and squad performance. Sidebar on the left, season pill above your level rail.', target: '', position: 'bottom' },
+  { id: 'create_squad',     title: 'Build your first Squad',       description: 'Squads are portfolios of 22 stocks: 11 starters that count for returns, 11 reserves on the bench. Pick a formation, sign 22 players.', target: '', position: 'right' },
+  { id: 'sign_players',     title: 'Sign players in one go',       description: 'Use Sign Squad to fill all 22 slots in one screen. Or use the Market tab to find a specific ticker — click Sign and choose which squad it joins.', target: '', position: 'right' },
+  { id: 'fixtures',         title: 'Beat the index',               description: 'Fixtures are 1-week to 3-month challenges. Beat the S&P 500, any ETF, or another manager. Longer timeframes pay more XP.', target: '', position: 'right' },
+  { id: 'training',         title: 'Training Ground',              description: 'Pass drills in the Training tab to earn XP and learn how the market actually works. Asset types, risk, valuation — bite-sized lessons.', target: '', position: 'right' },
+  { id: 'kickoff',          title: 'Kick off',                     description: 'You’ll get a daily login bonus, weekend sub windows, and quarterly transfer windows. Take it slow — the league runs for 52 weeks.', target: '', position: 'bottom' },
 ];
 
 // ============================================================

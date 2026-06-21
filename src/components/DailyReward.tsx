@@ -5,13 +5,40 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '@/store/useStore';
 import { DAILY_LOGIN_REWARDS } from '@/types';
 import { Icon } from '@/components/stadium/Icon';
+import { Modal } from '@/components/ui/Modal';
 
 interface DailyRewardProps {
   onClose?: () => void;
 }
 
+/* Once-per-session-per-day session marker so the modal doesn't pop
+   every time the user changes routes. Cleared when the date changes
+   so the modal can fire again the next day. */
+const todayYmd = (): string => new Date().toISOString().slice(0, 10);
+const SESSION_KEY = 'gamefi:daily-reward-dismissed';
+const wasDismissedToday = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  try {
+    return sessionStorage.getItem(SESSION_KEY) === todayYmd();
+  } catch {
+    return false;
+  }
+};
+const markDismissedToday = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.setItem(SESSION_KEY, todayYmd());
+  } catch {
+    /* sessionStorage disabled — modal will re-fire on next route nav */
+  }
+};
+
 export const DailyReward: React.FC<DailyRewardProps> = ({ onClose }) => {
   const { currentUser, loadData } = useStore();
+  /* visible = whether the Modal is open. Was previously implicit (the
+     component always rendered its panel inline), which meant mounting
+     it bare in AppLayout dropped a stray panel onto every page. */
+  const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const [claiming, setClaiming] = useState(false);
   const [canClaim, setCanClaim] = useState(false);
@@ -35,6 +62,10 @@ export const DailyReward: React.FC<DailyRewardProps> = ({ onClose }) => {
 
   const checkDailyReward = async () => {
     if (!currentUser) return;
+    /* Don't reopen the modal during the same session if the user
+       already dismissed it today. Check before the fetch so we don't
+       even hit the network. */
+    if (wasDismissedToday()) return;
     setLoading(true);
     try {
       const res = await fetch(`/api/rewards/daily?userId=${currentUser.id}`);
@@ -43,12 +74,24 @@ export const DailyReward: React.FC<DailyRewardProps> = ({ onClose }) => {
         setCanClaim(data.canClaim);
         setStreakInfo(data.streak);
         setNextReward(data.nextReward);
+        /* Only auto-open if there's actually a reward to claim. */
+        if (data.canClaim) {
+          setVisible(true);
+        } else {
+          markDismissedToday();
+        }
       }
     } catch (error) {
       console.error('Failed to check daily reward:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleClose = () => {
+    setVisible(false);
+    markDismissedToday();
+    onClose?.();
   };
 
   const claimReward = async () => {
@@ -77,16 +120,20 @@ export const DailyReward: React.FC<DailyRewardProps> = ({ onClose }) => {
 
   const streakDays = Array.from({ length: 7 }, (_, i) => i + 1);
 
-  if (loading) {
-    return (
-      <div style={{ padding: 32, display: 'flex', justifyContent: 'center' }}>
-        <div className="stadium-spinner" style={{ width: 28, height: 28 }} />
-      </div>
-    );
-  }
+  /* Don't render anything until we've fetched AND there's a reward to
+     show (or we're mid-claim). Previously the component returned a
+     visible spinner panel on every page load. */
+  if (!visible) return null;
 
   return (
-    <div style={{ padding: 22 }}>
+    <Modal isOpen={visible} onClose={handleClose} title="Daily reward" size="sm">
+    <div style={{ padding: loading ? 32 : 22 }}>
+    {loading ? (
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <div className="stadium-spinner" style={{ width: 28, height: 28 }} />
+      </div>
+    ) : (
+    <div>
       <AnimatePresence mode="wait">
         {claimed ? (
           <motion.div
@@ -143,7 +190,7 @@ export const DailyReward: React.FC<DailyRewardProps> = ({ onClose }) => {
             </div>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="stadium-btn stadium-btn-primary"
               style={{ padding: '10px 22px' }}
             >
@@ -321,6 +368,9 @@ export const DailyReward: React.FC<DailyRewardProps> = ({ onClose }) => {
         )}
       </AnimatePresence>
     </div>
+    )}
+    </div>
+    </Modal>
   );
 };
 
