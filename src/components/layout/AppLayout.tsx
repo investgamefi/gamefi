@@ -9,6 +9,7 @@ import { BetaBanner } from '../BetaBanner';
 import { FeedbackWidget } from '../FeedbackWidget';
 import { Onboarding } from '../Onboarding';
 import { DailyReward } from '../DailyReward';
+import { CommandPalette } from '../CommandPalette';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -110,6 +111,12 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, flush = false })
           and dismisses for the day via its own POST. */}
       <Onboarding />
       <DailyReward />
+      {/* Power-user command palette (item 18). Global cmd+k / ctrl+k
+          listener inside the component; renders a Modal overlay when
+          triggered. Mounted here since AppLayout already redirects
+          unauthenticated users away — palette never reaches an
+          anonymous viewer. */}
+      <CommandPalette />
     </div>
   );
 };

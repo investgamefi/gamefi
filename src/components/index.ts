@@ -32,3 +32,4 @@ export { ErrorBoundary, useErrorHandler } from './ErrorBoundary';
 export { Onboarding } from './Onboarding';
 export { FeedbackWidget } from './FeedbackWidget';
 export { BetaBanner } from './BetaBanner';
+export { CommandPalette } from './CommandPalette';
