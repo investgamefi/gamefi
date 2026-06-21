@@ -16,6 +16,7 @@ import {
 } from '@/lib/utils';
 import { fetchMultiplePortfolioPerformances } from '@/hooks/usePortfolioRealPerformance';
 import { fetchBenchmarkHistoricalData } from '@/lib/benchmarkData';
+import { MOCK_ASSETS } from '@/data/assets';
 
 /* Real SPY benchmark snapshot fetched on mount — used by the Scoreboard
    instead of the hardcoded editorial numbers. */
@@ -26,8 +27,28 @@ type SpySnapshot = {
   normalized: { date: string; value: number }[]; // 1M series normalized to 100
 };
 
-/* Symbols shown in the Transfer Wire row at the bottom of the dashboard. */
-const MOVER_SYMBOLS = ['NVDA', 'COIN', 'TSLA', 'META', 'AMD', 'JPM'];
+/* Universe sampled by the Transfer Wire — large-cap names across sectors.
+   We fetch live quotes for all of them, then pick the top 6 by |day change|
+   so the strip actually surfaces today's biggest movers instead of a
+   hardcoded marketing list. */
+const MOVER_UNIVERSE: string[] = (() => {
+  // 24 large-cap tickers spanning Tech / Healthcare / Financial / Energy /
+  // Consumer / Comms. Pulled from MOCK_ASSETS so we stay aligned with the
+  // app's coverage list and don't fetch tickers the platform can't trade.
+  const symbols = [
+    'AAPL', 'MSFT', 'NVDA', 'AMD', 'INTC', 'AVGO', 'CRM', 'ORCL',
+    'JPM', 'V', 'BAC', 'GS',
+    'UNH', 'JNJ', 'LLY', 'PFE',
+    'XOM', 'CVX',
+    'AMZN', 'TSLA', 'META', 'GOOGL',
+    'WMT', 'COST',
+  ];
+  // Filter to only symbols that exist in MOCK_ASSETS so the cards link to
+  // real assets on the market page.
+  const known = new Set(MOCK_ASSETS.map((a) => a.symbol.toUpperCase()));
+  return symbols.filter((s) => known.has(s));
+})();
+const MOVER_DISPLAY_COUNT = 6;
 
 type Mover = {
   sym: string;
@@ -67,9 +88,20 @@ export default function DashboardPage() {
   // Real SPY benchmark snapshot for the Scoreboard + Sparkline
   const [spy, setSpy] = useState<SpySnapshot | null>(null);
 
-  // Real movers for the Transfer Wire (was hardcoded SAMPLE_MOVERS before)
+  // Real top movers for the Transfer Wire. Starts as N skeleton cards while
+  // we fetch quotes across MOVER_UNIVERSE; once results land we rank by
+  // |dayChangePercent| and keep the top MOVER_DISPLAY_COUNT.
   const [movers, setMovers] = useState<Mover[]>(
-    () => MOVER_SYMBOLS.map((sym) => ({ sym, sector: '', px: null, change: null })),
+    () =>
+      Array.from({ length: MOVER_DISPLAY_COUNT }, (_, i) => ({
+        sym: '',
+        sector: '',
+        px: null,
+        change: null,
+        // Stable React key for placeholder rows so we don't reuse skeleton DOM
+        // nodes when the real movers swap in.
+        _placeholder: `placeholder-${i}`,
+      })) as unknown as Mover[],
   );
 
   // Fetch SPY 1M historical + latest quote on mount
@@ -104,11 +136,13 @@ export default function DashboardPage() {
     };
   }, []);
 
-  // Fetch real prices for the Transfer Wire (parallel, with sector + day change)
+  // Fetch real quotes across MOVER_UNIVERSE in parallel, then rank by
+  // absolute day-change % and keep the top N. This is the actual "hot
+  // tickers this session" — not a hardcoded list.
   useEffect(() => {
     let cancelled = false;
     Promise.all(
-      MOVER_SYMBOLS.map(async (sym): Promise<Mover> => {
+      MOVER_UNIVERSE.map(async (sym): Promise<Mover | null> => {
         try {
           const res = await fetch(`/api/yahoo-finance?symbol=${sym}`);
           const data = await res.json();
@@ -121,12 +155,19 @@ export default function DashboardPage() {
             };
           }
         } catch {
-          /* swallow per-symbol failure */
+          /* swallow per-symbol failure — we'll just have fewer candidates */
         }
-        return { sym, sector: '', px: null, change: null };
+        return null;
       }),
     ).then((results) => {
-      if (!cancelled) setMovers(results);
+      if (cancelled) return;
+      const ranked = results
+        .filter((r): r is Mover => r != null && r.change != null)
+        .sort((a, b) => Math.abs(b.change as number) - Math.abs(a.change as number))
+        .slice(0, MOVER_DISPLAY_COUNT);
+      // If everything failed, leave the skeletons up rather than blanking
+      // the section.
+      if (ranked.length > 0) setMovers(ranked);
     });
     return () => {
       cancelled = true;
@@ -597,13 +638,13 @@ export default function DashboardPage() {
           </aside>
         </div>
 
-        {/* Transfer Wire — decorative hot tickers strip. Uses sample movers
-            because the dashboard doesn't currently fetch market-wide top movers;
-            the live Transfer Market page (/market) has real data. */}
+        {/* Transfer Wire — real top movers selected from MOVER_UNIVERSE,
+            ranked by |day change %|. While quotes are still loading we render
+            MOVER_DISPLAY_COUNT skeleton cards so the strip never collapses. */}
         <section>
           <SectionHeader
             title="Transfer Wire"
-            sub="Hot tickers this session"
+            sub="Today's biggest movers"
             right={
               <Link
                 href="/market"
@@ -621,8 +662,9 @@ export default function DashboardPage() {
               gap: 10,
             }}
           >
-            {movers.map((m) => (
-              <MoverCard key={m.sym} mover={m} />
+            {movers.map((m, i) => (
+              // Use index for placeholder rows (sym === ''), real symbol otherwise
+              <MoverCard key={m.sym || `mover-skeleton-${i}`} mover={m} />
             ))}
           </div>
         </section>
@@ -1337,7 +1379,9 @@ const FixtureRow: React.FC<{ fixture: Challenge; myUserId?: string }> = ({ fixtu
   );
 };
 
-/* Decorative Transfer Wire — sample movers (see comment in main component). */
+/* Transfer Wire card — renders a single ranked top mover. While the
+   fetch is in flight we get placeholder rows with empty `sym` and null
+   prices, which collapse to a skeleton view. */
 const MoverCard: React.FC<{ mover: Mover }> = ({ mover }) => {
   const hasData = mover.px != null && mover.change != null;
   const up = hasData && (mover.change as number) >= 0;
@@ -1363,7 +1407,18 @@ const MoverCard: React.FC<{ mover: Mover }> = ({ mover }) => {
     >
       <div className="flex items-start justify-between">
         <div className="display num" style={{ fontSize: 16, letterSpacing: '-0.03em' }}>
-          {mover.sym}
+          {mover.sym || (
+            <span
+              style={{
+                display: 'inline-block',
+                width: 48,
+                height: 14,
+                background: 'var(--surface-2)',
+                borderRadius: 2,
+              }}
+              aria-hidden="true"
+            />
+          )}
         </div>
         {hasData ? (
           <div
