@@ -9,7 +9,7 @@
    transfers per the season rules. */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { AppLayout, AssetSelector } from '@/components';
@@ -23,6 +23,7 @@ import {
   Asset,
   SQUAD_BENCH_COUNT,
 } from '@/types';
+import { MOCK_ASSETS } from '@/data/assets';
 
 interface SlotEditState {
   positionId: string;
@@ -33,7 +34,9 @@ interface SlotEditState {
 export default function SignSquadPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const portfolioId = params?.id as string;
+  const prefillSymbol = searchParams?.get('prefill') || null;
   const { currentUser, assignAssetToPosition } = useStore();
 
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
@@ -41,6 +44,82 @@ export default function SignSquadPage() {
   const [editingSlot, setEditingSlot] = useState<SlotEditState | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /* Tracks whether we've already applied the ?prefill=X param so we
+     don't keep re-applying it on every re-render. */
+  const [prefillApplied, setPrefillApplied] = useState(false);
+  const [prefillNotice, setPrefillNotice] = useState<string | null>(null);
+
+  /* When the page is opened from the Market "Sign QQQ" button, the
+     ticker arrives via ?prefill=QQQ. Look it up (mock catalogue first,
+     then Yahoo) and stash it in the first empty STARTER slot as a
+     pending change. User can move/save/discard from there. */
+  useEffect(() => {
+    if (prefillApplied || !prefillSymbol || !portfolio) return;
+    const target = prefillSymbol.toUpperCase();
+
+    const firstEmptyStarter = portfolio.players.find(
+      (p) => !p.isBench && !p.asset && !pending.has(p.positionId),
+    );
+    if (!firstEmptyStarter) {
+      /* No empty starter — fall back to first empty bench slot, then
+         to bailing out with a banner. */
+      const firstEmptyBench = portfolio.players.find(
+        (p) => p.isBench && !p.asset && !pending.has(p.positionId),
+      );
+      if (!firstEmptyBench) {
+        setPrefillNotice(`Couldn't auto-place ${target} — squad is already full. Use "Change" on any slot to swap a player.`);
+        setPrefillApplied(true);
+        return;
+      }
+    }
+
+    const slot = firstEmptyStarter
+      ?? portfolio.players.find((p) => p.isBench && !p.asset && !pending.has(p.positionId));
+    if (!slot) {
+      setPrefillApplied(true);
+      return;
+    }
+
+    /* Resolve the Asset object — try the mock catalogue first since
+       it's instant; fall back to Yahoo lookup for tickers we don't
+       carry yet. */
+    let cancelled = false;
+    const mock = MOCK_ASSETS.find((a) => a.symbol.toUpperCase() === target);
+    const apply = (asset: Asset) => {
+      if (cancelled) return;
+      setPending((prev) => {
+        const next = new Map(prev);
+        next.set(slot.positionId, asset);
+        return next;
+      });
+      setPrefillNotice(`Added ${asset.symbol} to ${slot.isBench ? 'the bench' : 'an empty starter slot'} — tap Save when you're done, or move it with "Change".`);
+      setPrefillApplied(true);
+    };
+
+    if (mock) {
+      apply(mock);
+      return;
+    }
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/yahoo-finance?symbol=${encodeURIComponent(target)}`);
+        const data = await res.json();
+        if (data.success && data.asset) {
+          apply(data.asset as Asset);
+        } else {
+          setPrefillNotice(`Couldn't find a ticker for ${target}.`);
+          setPrefillApplied(true);
+        }
+      } catch {
+        setPrefillNotice(`Couldn't look up ${target} right now.`);
+        setPrefillApplied(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [prefillSymbol, portfolio, pending, prefillApplied]);
 
   /* Load portfolio. Live fetch (not snapshot) because we're the owner. */
   useEffect(() => {
@@ -267,6 +346,31 @@ export default function SignSquadPage() {
             }}
           >
             {error}
+          </div>
+        )}
+
+        {prefillNotice && (
+          <div
+            className="stadium-card flex items-start justify-between"
+            style={{
+              padding: '10px 14px',
+              gap: 12,
+              background: 'var(--pitch-tint)',
+              borderColor: 'oklch(0.72 0.21 145 / 0.4)',
+              color: 'var(--text)',
+              fontSize: 12,
+            }}
+          >
+            <span>{prefillNotice}</span>
+            <button
+              type="button"
+              onClick={() => setPrefillNotice(null)}
+              className="stadium-btn stadium-btn-ghost"
+              style={{ padding: '2px 6px', fontSize: 10, minHeight: 24 }}
+              aria-label="Dismiss notice"
+            >
+              <Icon.Close size={10} />
+            </button>
           </div>
         )}
 

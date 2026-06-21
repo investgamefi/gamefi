@@ -2,10 +2,12 @@
 
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { AppLayout, Input } from '@/components';
+import { useRouter } from 'next/navigation';
+import { AppLayout, Input, Modal } from '@/components';
 import { MOCK_ASSETS, SECTORS, getAllAssets, addExternalAsset } from '@/data/assets';
 import { formatCurrency, formatPercent, formatNumber } from '@/lib/utils';
 import { useAssetSearch } from '@/hooks/useAssetSearch';
+import { useStore } from '@/store/useStore';
 import { Asset } from '@/types';
 import { Icon } from '@/components/stadium/Icon';
 
@@ -26,11 +28,31 @@ const riskPillClass = (tier: RiskTier) =>
   tier === 'ATK' ? 'pill pill-red' : tier === 'MID' ? 'pill pill-whistle' : 'pill pill-sky';
 
 export default function MarketPage() {
+  const router = useRouter();
+  const { portfolios } = useStore();
   const [selectedSector, setSelectedSector] = useState('All');
   const [sortBy, setSortBy] = useState<SortBy>('marketCap');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  /* Which asset symbol the user clicked Sign on. When set, opens the
+     squad-picker modal. */
+  const [signTargetSymbol, setSignTargetSymbol] = useState<string | null>(null);
 
   const { results: searchResults, isLoading: isSearching, error: searchError, searchTerm, setSearchTerm } = useAssetSearch('');
+
+  /* Open the squad-picker for an asset. Short-circuits straight to the
+     /sign page if the user has exactly one squad — no point making them
+     pick. Routes to /portfolio (create flow) if they have none. */
+  const handleSignClick = (symbol: string) => {
+    if (portfolios.length === 0) {
+      router.push('/portfolio?create=1');
+      return;
+    }
+    if (portfolios.length === 1) {
+      router.push(`/portfolio/${portfolios[0].id}/sign?prefill=${encodeURIComponent(symbol)}`);
+      return;
+    }
+    setSignTargetSymbol(symbol);
+  };
 
   const filteredAssets = useMemo(() => {
     let assets: Asset[] = searchTerm.trim() ? searchResults : getAllAssets();
@@ -227,7 +249,7 @@ export default function MarketPage() {
               }}
             >
               {hotMovers.map((s) => (
-                <TransferCard key={s.id} asset={s} />
+                <TransferCard key={s.id} asset={s} onSign={() => handleSignClick(s.symbol)} />
               ))}
             </div>
           </div>
@@ -398,18 +420,18 @@ export default function MarketPage() {
                     ${formatNumber(asset.marketCap)}
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <Link
-                      href="/portfolio"
+                    <button
+                      type="button"
+                      onClick={() => handleSignClick(asset.symbol)}
                       className="stadium-btn stadium-btn-ghost"
                       style={{
                         padding: '5px 10px',
                         fontSize: 10,
-                        textDecoration: 'none',
                       }}
                       title={`Sign ${asset.symbol} to a squad`}
                     >
                       <Icon.Plus size={11} /> Sign
-                    </Link>
+                    </button>
                   </div>
                 </div>
               );
@@ -417,6 +439,57 @@ export default function MarketPage() {
           </div>
         </div>
       </div>
+
+      {/* Squad picker — only shown when the user has multiple squads
+          and clicked Sign on an asset. Tapping a squad routes to the
+          bulk-sign page with the asset prefilled into the first empty
+          slot. */}
+      <Modal
+        isOpen={!!signTargetSymbol}
+        onClose={() => setSignTargetSymbol(null)}
+        title={signTargetSymbol ? `Sign ${signTargetSymbol} to which squad?` : 'Pick a squad'}
+        size="sm"
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {portfolios.map((p) => {
+            const empty = p.players.filter((pl) => !pl.asset).length;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => {
+                  if (!signTargetSymbol) return;
+                  router.push(
+                    `/portfolio/${p.id}/sign?prefill=${encodeURIComponent(signTargetSymbol)}`,
+                  );
+                  setSignTargetSymbol(null);
+                }}
+                className="stadium-card flex items-center justify-between"
+                style={{
+                  padding: '12px 14px',
+                  gap: 12,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  color: 'inherit',
+                  transition: 'border-color .15s ease',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--pitch)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--line)'; }}
+              >
+                <div>
+                  <div className="display" style={{ fontSize: 14, letterSpacing: '-0.01em' }}>
+                    {p.name}
+                  </div>
+                  <div className="mono" style={{ fontSize: 10, color: 'var(--text-mute)', marginTop: 2 }}>
+                    {p.formation} · {empty} empty slot{empty === 1 ? '' : 's'}
+                  </div>
+                </div>
+                <Icon.Arrow size={14} style={{ color: 'var(--pitch)' }} />
+              </button>
+            );
+          })}
+        </div>
+      </Modal>
     </AppLayout>
   );
 }
@@ -471,7 +544,7 @@ const StatTile: React.FC<{
   </div>
 );
 
-const TransferCard: React.FC<{ asset: Asset }> = ({ asset }) => {
+const TransferCard: React.FC<{ asset: Asset; onSign: () => void }> = ({ asset, onSign }) => {
   const up = asset.dayChangePercent >= 0;
   const tier = riskTier(asset.beta || 1);
   return (
@@ -524,20 +597,20 @@ const TransferCard: React.FC<{ asset: Asset }> = ({ asset }) => {
           {formatCurrency(asset.currentPrice)}
         </div>
       </div>
-      <Link
-        href="/portfolio"
+      <button
+        type="button"
+        onClick={onSign}
         className="stadium-btn stadium-btn-ink"
         style={{
           width: '100%',
           justifyContent: 'center',
           padding: '8px 12px',
           fontSize: 12,
-          textDecoration: 'none',
           marginTop: 'auto',
         }}
       >
         Sign {asset.symbol}
-      </Link>
+      </button>
     </div>
   );
 };
