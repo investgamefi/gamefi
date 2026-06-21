@@ -449,6 +449,20 @@ export default function PortfolioDetailPage() {
                 >
                   <Icon.ArrowDown size={12} /> CSV
                 </button>
+                {isOwner && portfolio.players.some((p) => !p.asset) && (
+                  <Link
+                    href={`/portfolio/${portfolio.id}/sign`}
+                    className="stadium-btn stadium-btn-primary"
+                    style={{
+                      padding: '6px 12px',
+                      fontSize: 11,
+                      textDecoration: 'none',
+                    }}
+                    title="Open the bulk-sign view to fill empty positions"
+                  >
+                    <Icon.Plus size={12} /> Sign empty
+                  </Link>
+                )}
                 {isOwner && (
                   <button
                     type="button"

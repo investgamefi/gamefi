@@ -20,6 +20,7 @@ import {
   CHALLENGE_XP,
   SeasonState,
   AllocationStrategy,
+  SQUAD_BENCH_COUNT,
 } from '@/types';
 import { AuthResponse } from '@/types';
 
@@ -325,11 +326,25 @@ export const useStore = create<AppState>((set, get) => ({
     }
 
     const positions = FORMATIONS[formation];
-    const players: PortfolioPlayer[] = positions.map((pos) => ({
+    const starters: PortfolioPlayer[] = positions.map((pos) => ({
       positionId: pos.id,
       asset: null,
       allocation: 100 / 11,
     }));
+    /* Seed 11 bench slots with synthetic position ids. Bench players
+       sit at allocation 0 until they're subbed into a starter slot via
+       a weekend swap. Initial bench fill (during /sign) is free; later
+       swaps cost XP per the season rules. */
+    const bench: PortfolioPlayer[] = Array.from(
+      { length: SQUAD_BENCH_COUNT },
+      (_, i) => ({
+        positionId: `bench-${i + 1}`,
+        asset: null,
+        allocation: 0,
+        isBench: true,
+      }),
+    );
+    const players: PortfolioPlayer[] = [...starters, ...bench];
 
     const response = await fetch('/api/portfolios', {
       method: 'POST',
@@ -420,9 +435,27 @@ export const useStore = create<AppState>((set, get) => ({
     const portfolio = get().portfolios.find((p) => p.id === portfolioId);
     if (!portfolio) return;
 
-    const updatedPlayers = portfolio.players.map((player) =>
-      player.positionId === positionId ? { ...player, asset } : player
-    );
+    const hasEntry = portfolio.players.some((p) => p.positionId === positionId);
+    let updatedPlayers: PortfolioPlayer[];
+    if (hasEntry) {
+      updatedPlayers = portfolio.players.map((player) =>
+        player.positionId === positionId ? { ...player, asset } : player,
+      );
+    } else {
+      /* Inserting a new slot — happens when a legacy 11-player portfolio
+         is being topped up with bench entries (positionId 'bench-N')
+         via the bulk-sign page. Bench entries always start at 0%. */
+      const isBench = positionId.startsWith('bench-');
+      updatedPlayers = [
+        ...portfolio.players,
+        {
+          positionId,
+          asset,
+          allocation: isBench ? 0 : 100 / 11,
+          isBench: isBench || undefined,
+        },
+      ];
+    }
 
     await get().updatePortfolio(portfolioId, { players: updatedPlayers });
   },

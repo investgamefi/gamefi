@@ -233,7 +233,9 @@ export default function DashboardPage() {
       setShowCreateModal(false);
       setNewPortfolioName('');
       setNewPortfolioDesc('');
-      router.push(`/portfolio/${portfolio.id}`);
+      /* Land on the bulk-sign page so the user fills all 22 slots in one
+         screen instead of clicking each position individually. */
+      router.push(`/portfolio/${portfolio.id}/sign`);
     } catch (error) {
       console.error('Failed to create portfolio:', error);
     }
