@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/lib/supabase';
+import { requireSessionUserId } from '@/lib/session';
 import { Portfolio, Formation, PortfolioPlayer } from '@/types';
 
 // GET - Fetch portfolios (optionally by user_id)
@@ -51,13 +52,31 @@ export async function GET(request: NextRequest) {
       tags: p.tags || [],
     }));
 
-    // Fetch likes for each portfolio
-    for (const portfolio of formattedPortfolios) {
+    /* Likes: one batched query keyed on portfolio_id IN (…). Replaces
+       the N+1 loop that fired one SELECT per portfolio (Sprint 5,
+       item 25). Skip if there's only one portfolio — single query is
+       fine and the detail-page case stays cheap. */
+    if (formattedPortfolios.length === 1) {
       const { data: likes } = await supabase
         .from('portfolio_likes')
         .select('user_id')
-        .eq('portfolio_id', portfolio.id);
-      portfolio.likes = likes?.map(l => l.user_id) || [];
+        .eq('portfolio_id', formattedPortfolios[0].id);
+      formattedPortfolios[0].likes = likes?.map((l) => l.user_id) || [];
+    } else if (formattedPortfolios.length > 1) {
+      const ids = formattedPortfolios.map((p) => p.id);
+      const { data: likes } = await supabase
+        .from('portfolio_likes')
+        .select('portfolio_id, user_id')
+        .in('portfolio_id', ids);
+      const grouped = new Map<string, string[]>();
+      for (const row of likes || []) {
+        const arr = grouped.get(row.portfolio_id) || [];
+        arr.push(row.user_id);
+        grouped.set(row.portfolio_id, arr);
+      }
+      for (const p of formattedPortfolios) {
+        p.likes = grouped.get(p.id) || [];
+      }
     }
 
     // F7 privacy gate: single portfolio + viewerId who isn't the owner →
@@ -117,29 +136,35 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { userId, name, description, formation, players, isPublic, tags, clonedFrom } = body;
 
-    if (!userId || !name || !formation) {
+    if (!name || !formation) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
+    /* Auth: portfolio is always created for the session user. Body
+       userId optional but must match session if present. */
+    const sessionResult = requireSessionUserId(request, userId);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const sessionUserId = sessionResult;
+
     // Check user's team limit
     const { data: user } = await supabase
       .from('users')
       .select('max_teams')
-      .eq('id', userId)
+      .eq('id', sessionUserId)
       .single();
 
     const { data: existingPortfolios } = await supabase
       .from('portfolios')
       .select('id')
-      .eq('user_id', userId);
+      .eq('user_id', sessionUserId);
 
     const maxTeams = user?.max_teams || 3;
     if (existingPortfolios && existingPortfolios.length >= maxTeams) {
       return NextResponse.json(
-        { success: false, error: 'Team limit reached. Unlock more slots with XP.' },
+        { success: false, error: 'Squad limit reached. Unlock more slots with XP.' },
         { status: 400 }
       );
     }
@@ -151,7 +176,7 @@ export async function POST(request: NextRequest) {
       .from('portfolios')
       .insert({
         id: portfolioId,
-        user_id: userId,
+        user_id: sessionUserId,
         name,
         description: description || '',
         formation,
@@ -179,7 +204,7 @@ export async function POST(request: NextRequest) {
       const { data: cur } = await supabase
         .from('users')
         .select('xp')
-        .eq('id', userId)
+        .eq('id', sessionUserId)
         .single();
       const baseXp = cur?.xp ?? 0;
       const nextXp = baseXp + xpDelta;
@@ -188,7 +213,7 @@ export async function POST(request: NextRequest) {
       const { error: xpErr } = await supabase
         .from('users')
         .update({ xp: nextXp, level: newLevel, updated_at: now })
-        .eq('id', userId);
+        .eq('id', sessionUserId);
       if (xpErr) console.error('Failed to grant portfolio-create XP:', xpErr);
     }
 

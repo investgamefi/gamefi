@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/lib/supabase';
+import { requireSessionUserId } from '@/lib/session';
 import {
   Challenge,
   ChallengeType,
@@ -210,12 +211,18 @@ export async function POST(request: NextRequest) {
     };
 
     // Validate required fields
-    if (!challengerId || !challengerPortfolioId || !type || !timeframe) {
+    if (!challengerPortfolioId || !type || !timeframe) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
       );
     }
+
+    /* Auth: challengerId is whatever the session says it is. Body
+       challengerId is optional but if present must match. */
+    const sessionResult = requireSessionUserId(request, challengerId);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const sessionChallengerId = sessionResult;
 
     // Validate type
     if (type !== 'sp500' && type !== 'user' && type !== 'etf') {
@@ -265,11 +272,28 @@ export async function POST(request: NextRequest) {
       normalizedEtfSymbol = candidate;
     }
 
+    /* Verify the challenger actually owns challengerPortfolioId.
+       Without this check, anyone with a session could create a fixture
+       wagering somebody else's squad. */
+    {
+      const { data: ownedPortfolio } = await supabase
+        .from('portfolios')
+        .select('user_id')
+        .eq('id', challengerPortfolioId)
+        .single();
+      if (!ownedPortfolio || ownedPortfolio.user_id !== sessionChallengerId) {
+        return NextResponse.json(
+          { success: false, error: 'Not authorized to challenge with that squad' },
+          { status: 403 },
+        );
+      }
+    }
+
     // Get user's current XP and active challenge count
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('xp')
-      .eq('id', challengerId)
+      .eq('id', sessionChallengerId)
       .single();
 
     if (userError || !user) {
@@ -283,7 +307,7 @@ export async function POST(request: NextRequest) {
     const { count, error: countError } = await supabase
       .from('challenges')
       .select('id', { count: 'exact', head: true })
-      .or(`challenger_id.eq.${challengerId},opponent_id.eq.${challengerId}`)
+      .or(`challenger_id.eq.${sessionChallengerId},opponent_id.eq.${sessionChallengerId}`)
       .in('status', ['pending', 'active']);
 
     if (countError) {
@@ -340,7 +364,7 @@ export async function POST(request: NextRequest) {
         id: challengeId,
         type,
         status,
-        challenger_id: challengerId,
+        challenger_id: sessionChallengerId,
         challenger_portfolio_id: challengerPortfolioId,
         opponent_id: type === 'user' ? opponentId : null,
         opponent_portfolio_id: type === 'user' ? opponentPortfolioId : null,
@@ -369,14 +393,14 @@ export async function POST(request: NextRequest) {
       const { data: challenger } = await supabase
         .from('users')
         .select('username')
-        .eq('id', challengerId)
+        .eq('id', sessionChallengerId)
         .single();
 
       await createNotification(
         opponentId,
         'challenge_received',
         `${challenger?.username || 'Someone'} has challenged you to a portfolio battle!`,
-        { challengeId: challenge.id, challengerId }
+        { challengeId: challenge.id, challengerId: sessionChallengerId }
       );
     }
 
@@ -410,12 +434,18 @@ export async function PUT(request: NextRequest) {
       portfolioId?: string;
     };
 
-    if (!challengeId || !action || !userId) {
+    if (!challengeId || !action) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
       );
     }
+
+    /* Auth: session owns the action. Body userId, if present, must
+       match the session. */
+    const sessionResult = requireSessionUserId(request, userId);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const sessionUserId = sessionResult;
 
     // Get the challenge
     const { data: challenge, error: fetchError } = await supabase
@@ -431,9 +461,9 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Validate action based on user role
-    const isChallenger = challenge.challenger_id === userId;
-    const isOpponent = challenge.opponent_id === userId;
+    // Validate action based on user role (session id, not body)
+    const isChallenger = challenge.challenger_id === sessionUserId;
+    const isOpponent = challenge.opponent_id === sessionUserId;
 
     if (!isChallenger && !isOpponent) {
       return NextResponse.json(
@@ -458,11 +488,29 @@ export async function PUT(request: NextRequest) {
         );
       }
 
+      /* Ownership of the opponent's portfolioId. The accepter passes
+         which of THEIR squads to field; reject if they don't own it.
+         Without this check, anyone accepting could wager another
+         user's squad. */
+      if (portfolioId) {
+        const { data: ownedPortfolio } = await supabase
+          .from('portfolios')
+          .select('user_id')
+          .eq('id', portfolioId)
+          .single();
+        if (!ownedPortfolio || ownedPortfolio.user_id !== sessionUserId) {
+          return NextResponse.json(
+            { success: false, error: 'Not authorized to accept with that squad' },
+            { status: 403 },
+          );
+        }
+      }
+
       // Check opponent's XP
       const { data: opponent } = await supabase
         .from('users')
         .select('xp')
-        .eq('id', userId)
+        .eq('id', sessionUserId)
         .single();
 
       if (!opponent || opponent.xp < CHALLENGE_XP.VS_USER) {
@@ -479,7 +527,7 @@ export async function PUT(request: NextRequest) {
       const { count } = await supabase
         .from('challenges')
         .select('id', { count: 'exact', head: true })
-        .or(`challenger_id.eq.${userId},opponent_id.eq.${userId}`)
+        .or(`challenger_id.eq.${sessionUserId},opponent_id.eq.${sessionUserId}`)
         .in('status', ['pending', 'active']);
 
       if ((count || 0) >= MAX_ACTIVE_CHALLENGES) {
@@ -524,7 +572,7 @@ export async function PUT(request: NextRequest) {
       const { data: accepter } = await supabase
         .from('users')
         .select('username')
-        .eq('id', userId)
+        .eq('id', sessionUserId)
         .single();
 
       await createNotification(
@@ -575,7 +623,7 @@ export async function PUT(request: NextRequest) {
       const { data: decliner } = await supabase
         .from('users')
         .select('username')
-        .eq('id', userId)
+        .eq('id', sessionUserId)
         .single();
 
       await createNotification(

@@ -17,15 +17,30 @@ type SortOrder = 'asc' | 'desc';
 /* Map beta to a soccer-position risk tier:
    DEF (defender)   – low-volatility, beta < 0.9  → "the back four"
    MID (midfielder) – balanced, 0.9 ≤ beta < 1.3  → "the engine room"
-   ATK (attacker)   – high-volatility, beta ≥ 1.3 → "go score goals" */
-type RiskTier = 'DEF' | 'MID' | 'ATK';
-const riskTier = (beta: number): RiskTier => {
+   ATK (attacker)   – high-volatility, beta ≥ 1.3 → "go score goals"
+   UNK (unknown)    – Yahoo-sourced tickers we couldn't classify
+                      (beta defaults to 1.0 and sector is 'Other').
+                      Surfaced as a separate tier so users aren't
+                      misled into thinking an unknown ticker is MID. */
+type RiskTier = 'DEF' | 'MID' | 'ATK' | 'UNK';
+const riskTier = (asset: { beta?: number; sector?: string }): RiskTier => {
+  const beta = asset.beta ?? 1;
+  /* Yahoo fallback shape: beta=1.0 + sector='Other' means we have no
+     real classification data. Don't pretend it's MID. */
+  if (beta === 1 && asset.sector === 'Other') return 'UNK';
   if (beta < 0.9) return 'DEF';
   if (beta < 1.3) return 'MID';
   return 'ATK';
 };
 const riskPillClass = (tier: RiskTier) =>
-  tier === 'ATK' ? 'pill pill-red' : tier === 'MID' ? 'pill pill-whistle' : 'pill pill-sky';
+  tier === 'ATK'
+    ? 'pill pill-red'
+    : tier === 'MID'
+    ? 'pill pill-whistle'
+    : tier === 'DEF'
+    ? 'pill pill-sky'
+    : 'pill';
+const riskPillLabel = (tier: RiskTier) => (tier === 'UNK' ? 'UNCLASSIFIED' : tier);
 
 export default function MarketPage() {
   const router = useRouter();
@@ -112,7 +127,7 @@ export default function MarketPage() {
         {/* Header */}
         <div className="flex flex-wrap items-end justify-between" style={{ gap: 14 }}>
           <div>
-            <div className="kicker">{marketStats.totalAssets}+ TICKERS · LIVE PRICING</div>
+            <div className="kicker">MARKET SAMPLE · {marketStats.totalAssets} TICKERS COVERED</div>
             <h1
               className="display"
               style={{ fontSize: 'clamp(24px, 3vw, 32px)', letterSpacing: '-0.04em', margin: '2px 0 0' }}
@@ -191,6 +206,8 @@ export default function MarketPage() {
                 key={k}
                 type="button"
                 onClick={() => handleSort(k)}
+                aria-pressed={sortBy === k}
+                aria-label={`Sort by ${label}${sortBy === k ? `, ${sortOrder === 'asc' ? 'ascending' : 'descending'}` : ''}`}
                 className="mono"
                 style={{
                   padding: '6px 10px',
@@ -218,6 +235,8 @@ export default function MarketPage() {
               key={sector}
               type="button"
               onClick={() => setSelectedSector(sector)}
+              aria-pressed={selectedSector === sector}
+              aria-label={`Filter by sector ${sector}`}
               className="mono"
               style={{
                 padding: '6px 12px',
@@ -317,7 +336,7 @@ export default function MarketPage() {
               const isExternal = !MOCK_ASSETS.some((a) => a.id === asset.id);
               if (isExternal) handleAssetView(asset);
               const up = asset.dayChangePercent >= 0;
-              const tier = riskTier(asset.beta || 1);
+              const tier = riskTier(asset);
               return (
                 <div
                   key={asset.id}
@@ -391,8 +410,12 @@ export default function MarketPage() {
                     {asset.sector.toUpperCase()}
                   </div>
                   <div>
-                    <span className={riskPillClass(tier)} style={{ padding: '2px 6px' }}>
-                      {tier}
+                    <span
+                      className={riskPillClass(tier)}
+                      style={{ padding: '2px 6px', fontSize: tier === 'UNK' ? 8 : undefined }}
+                      title={tier === 'UNK' ? 'No beta/sector data — Yahoo-sourced ticker' : undefined}
+                    >
+                      {riskPillLabel(tier)}
                     </span>
                   </div>
                   <div className="mono num" style={{ fontSize: 12, textAlign: 'right' }}>
@@ -557,7 +580,7 @@ const StatTile: React.FC<{
 
 const TransferCard: React.FC<{ asset: Asset; onSign: () => void }> = ({ asset, onSign }) => {
   const up = asset.dayChangePercent >= 0;
-  const tier = riskTier(asset.beta || 1);
+  const tier = riskTier(asset);
   return (
     <div
       className="stadium-card"
@@ -584,8 +607,12 @@ const TransferCard: React.FC<{ asset: Asset; onSign: () => void }> = ({ asset, o
             {asset.sector.toUpperCase()}
           </div>
         </div>
-        <span className={riskPillClass(tier)} style={{ padding: '2px 6px' }}>
-          {tier}
+        <span
+          className={riskPillClass(tier)}
+          style={{ padding: '2px 6px', fontSize: tier === 'UNK' ? 8 : undefined }}
+          title={tier === 'UNK' ? 'No beta/sector data — Yahoo-sourced ticker' : undefined}
+        >
+          {riskPillLabel(tier)}
         </span>
       </div>
       <div>
