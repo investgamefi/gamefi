@@ -96,13 +96,31 @@ export default function PortfolioDetailPage() {
     weekendSwap,
     weekendSwapBatch,
     quarterlyTransfer,
+    portfolios: storePortfolios,
+    publicPortfolios: storePublicPortfolios,
   } = useStore();
 
-  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
-  /* loading=true while the initial fetch is in flight. Without this,
-     `!portfolio` flashes the "Squad not found" screen for ~1s before
-     real data arrives — which made every refresh look like a 404. */
-  const [loading, setLoading] = useState(true);
+  /* Look up the portfolio in the Zustand store first (own squads +
+     publicly cached ones). If it's there we show it INSTANTLY with no
+     network round-trip — the typical "navigate from /portfolio list
+     to /portfolio/[id]" path used to wait ~500ms-2s for a refetch
+     even though the data was already in memory. We still revalidate
+     in the background to pick up server-side updates (snapshots,
+     XP/level bumps from sub/transfer). Stale-while-revalidate. */
+  const storeHit = useMemo(() => {
+    return (
+      storePortfolios.find((p) => p.id === portfolioId) ||
+      storePublicPortfolios.find((p) => p.id === portfolioId) ||
+      null
+    );
+  }, [storePortfolios, storePublicPortfolios, portfolioId]);
+
+  const [portfolio, setPortfolio] = useState<Portfolio | null>(storeHit);
+  /* loading=true only when we don't even have a stale cached version
+     to render. With a cache hit we never show the spinner — the page
+     renders instantly with the stored data while the refresh runs in
+     the background. */
+  const [loading, setLoading] = useState(!storeHit);
   /* selectedPosition.position can be null for bench slots (synthetic
      positionId, no formation position). AssetSelector handles null
      position by skipping its risk-tier suggestions. */
@@ -164,7 +182,12 @@ export default function PortfolioDetailPage() {
   useEffect(() => {
     let cancelled = false;
     const fetchPortfolio = async () => {
-      setLoading(true);
+      /* Don't flip loading=true if we already have a cached version
+         to render. Showing the cached data immediately while the
+         refresh runs in the background is the whole point of the
+         stale-while-revalidate pattern — flipping loading would hide
+         the cached chips and reintroduce the perceived lag. */
+      if (!portfolio) setLoading(true);
       try {
         /* Pass viewerId so the API can apply the F7 privacy gate:
            non-owner viewers receive the last weekend's snapshot rather
@@ -175,12 +198,18 @@ export default function PortfolioDetailPage() {
         if (cancelled) return;
         if (data.success && data.portfolios?.length > 0) {
           setPortfolio(data.portfolios[0]);
-        } else {
+        } else if (!portfolio) {
+          /* Only flip to null (showing the "Squad not found" screen)
+             when we don't have a cached version either. If we have a
+             cache hit but the refresh comes back empty (rare — maybe
+             user just deleted the squad in another tab), keep the
+             cached view rather than 404-ing in their face. */
           setPortfolio(null);
         }
       } catch (error) {
         console.error('Failed to fetch portfolio:', error);
-        if (!cancelled) setPortfolio(null);
+        /* Network failure: keep cached version, don't blank the page. */
+        if (!cancelled && !portfolio) setPortfolio(null);
       } finally {
         if (!cancelled) setLoading(false);
       }
