@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Portfolio } from '@/types';
 import { useStore } from '@/store/useStore';
@@ -23,9 +24,10 @@ export const PortfolioCard: React.FC<PortfolioCardProps> = ({
   showUser = true,
   showActions = true,
 }) => {
-  const { currentUser, likePortfolio, clonePortfolio, canCreateTeam, getTeamSlotInfo, unlockTeamSlot, followUser, unfollowUser } = useStore();
+  const { currentUser, likePortfolio, clonePortfolio, canCreateSquad, getSquadSlotInfo, unlockSquadSlot, followUser, unfollowUser } = useStore();
   const owner = userStorage.getUserById(portfolio.userId);
   const [showLimitModal, setShowLimitModal] = useState(false);
+  const router = useRouter();
 
   const { performance, isLoading, isRealData } = usePortfolioRealPerformance(portfolio);
 
@@ -37,7 +39,7 @@ export const PortfolioCard: React.FC<PortfolioCardProps> = ({
   const filledPositions = portfolio.players.filter((p) => p.asset !== null).length;
   const positive = performance.totalReturnPercent >= 0;
 
-  const teamSlotInfo = getTeamSlotInfo();
+  const teamSlotInfo = getSquadSlotInfo();
 
   const handleLike = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -49,7 +51,7 @@ export const PortfolioCard: React.FC<PortfolioCardProps> = ({
     e.preventDefault();
     e.stopPropagation();
     if (currentUser && !isOwner) {
-      if (!canCreateTeam()) {
+      if (!canCreateSquad()) {
         setShowLimitModal(true);
         return;
       }
@@ -58,7 +60,7 @@ export const PortfolioCard: React.FC<PortfolioCardProps> = ({
   };
 
   const handleUnlockSlot = async () => {
-    const success = await unlockTeamSlot();
+    const success = await unlockSquadSlot();
     if (success) {
       setShowLimitModal(false);
       clonePortfolio(portfolio.id);
@@ -162,21 +164,47 @@ export const PortfolioCard: React.FC<PortfolioCardProps> = ({
 
           {showUser && owner && (
             <div className="flex items-center" style={{ gap: 8, marginTop: 8 }}>
-              <img
-                src={owner.avatar}
-                alt={owner.username}
-                style={{
-                  width: 18,
-                  height: 18,
-                  borderRadius: 3,
-                  border: '1px solid var(--line)',
-                  objectFit: 'cover',
-                  flexShrink: 0,
+              {/* @username click-through to the manager's profile.
+                  Nested anchors are invalid (the entire card is wrapped
+                  in <Link>), so this uses a <button> + router.push and
+                  stops propagation so the outer card click still works
+                  when the user clicks elsewhere. */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  router.push(`/profile/${portfolio.userId}`);
                 }}
-              />
-              <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.04em' }}>
-                @{owner.username} · {getRelativeTime(portfolio.createdAt).toUpperCase()}
-              </span>
+                aria-label={`View manager @${owner.username}`}
+                className="flex items-center"
+                style={{
+                  gap: 8,
+                  background: 'transparent',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  color: 'inherit',
+                  fontFamily: 'inherit',
+                }}
+              >
+                <img
+                  src={owner.avatar}
+                  alt=""
+                  aria-hidden="true"
+                  style={{
+                    width: 18,
+                    height: 18,
+                    borderRadius: 3,
+                    border: '1px solid var(--line)',
+                    objectFit: 'cover',
+                    flexShrink: 0,
+                  }}
+                />
+                <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.04em' }}>
+                  @{owner.username} · {getRelativeTime(portfolio.createdAt).toUpperCase()}
+                </span>
+              </button>
             </div>
           )}
         </div>

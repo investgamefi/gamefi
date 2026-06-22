@@ -257,6 +257,27 @@ const ScoutCard: React.FC<{ portfolio: Portfolio; performance?: PortfolioPerform
   const router = useRouter();
   const { currentUser, likePortfolio, clonePortfolio, followUser, unfollowUser } = useStore();
   const [isCloning, setIsCloning] = useState(false);
+  /* Owner's username for the "View profile" click-through. ScoutCard
+     doesn't get the username via props, so fetch by id once. Cached
+     in component state is fine — Scout grid mounts at most ~50 cards
+     in one viewport. */
+  const [ownerUsername, setOwnerUsername] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    if (currentUser?.id === portfolio.userId) {
+      setOwnerUsername(currentUser.username);
+      return;
+    }
+    fetch(`/api/users?id=${portfolio.userId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled && data?.success && data.user?.username) {
+          setOwnerUsername(data.user.username);
+        }
+      })
+      .catch(() => {/* leave null — fall back to "View manager" label */});
+    return () => { cancelled = true; };
+  }, [portfolio.userId, currentUser]);
   const hasLiked = currentUser ? portfolio.likes.includes(currentUser.id) : false;
   const isOwnSquad = currentUser?.id === portfolio.userId;
   const isFollowing = currentUser
@@ -333,6 +354,37 @@ const ScoutCard: React.FC<{ portfolio: Portfolio; performance?: PortfolioPerform
           <div className="mono" style={{ fontSize: 10, color: 'var(--text-mute)' }}>
             {portfolio.formation} · {getRelativeTime(portfolio.createdAt)}
           </div>
+          {/* @username click-through to the manager's profile.
+              Nested anchors are invalid (outer card is a Link), so use
+              a button + router.push and stop propagation. */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              router.push(`/profile/${portfolio.userId}`);
+            }}
+            aria-label={
+              ownerUsername
+                ? `View manager @${ownerUsername}`
+                : 'View manager profile'
+            }
+            className="mono"
+            style={{
+              marginTop: 4,
+              padding: 0,
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 10,
+              color: 'var(--pitch)',
+              fontWeight: 600,
+              letterSpacing: '0.04em',
+              textAlign: 'left',
+            }}
+          >
+            @{ownerUsername || '…'}
+          </button>
         </div>
         <div
           className="display num"
