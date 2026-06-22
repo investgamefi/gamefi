@@ -55,35 +55,47 @@ export default function LeaderboardPage() {
     run();
   }, [allPortfolios]);
 
-  // Fetch usernames for each portfolio owner
+  // Fetch usernames for each portfolio owner in a single batched request
+  // so the podium doesn't show @… placeholders for 1-2 seconds while N
+  // serial fetches resolve one at a time.
   useEffect(() => {
+    if (allPortfolios.length === 0) return;
     const fetchUsernames = async () => {
       const userIds = [...new Set(allPortfolios.map((p) => p.userId))];
       const next = new Map<string, { username: string; avatar: string }>();
+      const idsToFetch: string[] = [];
       for (const userId of userIds) {
         if (currentUser && userId === currentUser.id) {
           next.set(userId, {
             username: currentUser.username,
             avatar: currentUser.avatar || '/default-avatar.png',
           });
-          continue;
+        } else {
+          idsToFetch.push(userId);
         }
+      }
+      if (idsToFetch.length > 0) {
         try {
-          const res = await fetch(`/api/users?id=${userId}`);
+          const res = await fetch(`/api/users?ids=${idsToFetch.join(',')}`);
           const data = await res.json();
-          if (data.success && data.user) {
-            next.set(userId, {
-              username: data.user.username,
-              avatar: data.user.avatar || '/default-avatar.png',
-            });
+          if (data.success && data.users) {
+            for (const id of idsToFetch) {
+              const u = data.users[id];
+              next.set(id, {
+                username: u?.username || 'Unknown',
+                avatar: u?.avatar || '/default-avatar.png',
+              });
+            }
           }
         } catch {
-          next.set(userId, { username: 'Unknown', avatar: '/default-avatar.png' });
+          for (const id of idsToFetch) {
+            next.set(id, { username: 'Unknown', avatar: '/default-avatar.png' });
+          }
         }
       }
       setUsernames(next);
     };
-    if (allPortfolios.length > 0) fetchUsernames();
+    fetchUsernames();
   }, [allPortfolios, currentUser]);
 
   const podium = useMemo<PodiumEntry[]>(() => {

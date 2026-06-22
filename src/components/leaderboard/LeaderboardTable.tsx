@@ -29,34 +29,44 @@ export const LeaderboardTable: React.FC = () => {
   }, [refreshPortfolios]);
 
   useEffect(() => {
+    if (allPortfolios.length === 0) return;
     const fetchUsernames = async () => {
       const userIds = [...new Set(allPortfolios.map((p) => p.userId))];
       const newUsernames = new Map<string, { username: string; avatar: string }>();
+      const idsToFetch: string[] = [];
       for (const userId of userIds) {
         if (currentUser && userId === currentUser.id) {
           newUsernames.set(userId, {
             username: currentUser.username,
             avatar: currentUser.avatar || '/default-avatar.png',
           });
-          continue;
+        } else {
+          idsToFetch.push(userId);
         }
+      }
+      if (idsToFetch.length > 0) {
         try {
-          const response = await fetch(`/api/users?id=${userId}`);
+          const response = await fetch(`/api/users?ids=${idsToFetch.join(',')}`);
           const data = await response.json();
-          if (data.success && data.user) {
-            newUsernames.set(userId, {
-              username: data.user.username,
-              avatar: data.user.avatar || '/default-avatar.png',
-            });
+          if (data.success && data.users) {
+            for (const id of idsToFetch) {
+              const u = data.users[id];
+              newUsernames.set(id, {
+                username: u?.username || 'Unknown',
+                avatar: u?.avatar || '/default-avatar.png',
+              });
+            }
           }
         } catch (error) {
-          console.error(`Failed to fetch user ${userId}:`, error);
-          newUsernames.set(userId, { username: 'Unknown', avatar: '/default-avatar.png' });
+          console.error('Failed to fetch usernames batch:', error);
+          for (const id of idsToFetch) {
+            newUsernames.set(id, { username: 'Unknown', avatar: '/default-avatar.png' });
+          }
         }
       }
       setUsernames(newUsernames);
     };
-    if (allPortfolios.length > 0) fetchUsernames();
+    fetchUsernames();
   }, [allPortfolios, currentUser]);
 
   useEffect(() => {

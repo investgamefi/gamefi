@@ -3,14 +3,59 @@ import { supabase } from '@/lib/supabase';
 import { requireSessionUserId } from '@/lib/session';
 import { TEAM_SLOT_UNLOCK_COST } from '@/types';
 
-// GET - Fetch user by ID
+// GET - Fetch user(s) by id
+//
+// Two modes:
+//  - ?id=X         → full single-user record (with followers, portfolios,
+//                    badges — heavier, used by /profile/[id])
+//  - ?ids=A,B,C    → batched LIGHT user objects (id, username, displayName,
+//                    avatar). Used by leaderboard + LeaderboardTable to
+//                    populate owner names without N round-trips.
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('id');
+    const batchIds = searchParams.get('ids');
+
+    /* Batched-light path. One Supabase query, no joins. Returns a
+       `users` object keyed by id so the client can lookup with O(1).
+       The leaderboard page was waiting 1-2 seconds on N serial fetches
+       — this collapses to a single ~150ms round-trip. */
+    if (batchIds) {
+      const ids = batchIds
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (ids.length === 0) {
+        return NextResponse.json({ success: true, users: {} });
+      }
+      if (ids.length > 200) {
+        return NextResponse.json(
+          { success: false, error: 'Too many ids (max 200 per request)' },
+          { status: 400 },
+        );
+      }
+      const { data: rows, error } = await supabase
+        .from('users')
+        .select('id, username, display_name, avatar')
+        .in('id', ids);
+      if (error) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      }
+      const users: Record<string, { id: string; username: string; displayName: string; avatar: string }> = {};
+      for (const r of rows || []) {
+        users[r.id] = {
+          id: r.id,
+          username: r.username,
+          displayName: r.display_name,
+          avatar: r.avatar,
+        };
+      }
+      return NextResponse.json({ success: true, users });
+    }
 
     if (!userId) {
-      return NextResponse.json({ success: false, error: 'User ID required' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'User ID or ids required' }, { status: 400 });
     }
 
     const { data: dbUser, error } = await supabase
