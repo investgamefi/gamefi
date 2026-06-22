@@ -15,6 +15,7 @@
 */
 
 import { jwtVerify, SignJWT } from 'jose';
+import { NextResponse } from 'next/server';
 
 const COOKIE_NAME = 'gamefi_session';
 const DEV_FALLBACK_SECRET = 'dev-only-do-not-use-in-production-please-set-SESSION_SECRET';
@@ -76,13 +77,42 @@ export function sessionCookieOptions(opts?: { expire?: boolean }) {
 export const SESSION_COOKIE_NAME = COOKIE_NAME;
 
 /* Helper for API routes: reads the session userId from the
-   x-session-user-id request header that middleware injects. Falls
-   back to a body-supplied userId for the transition period — the
-   middleware sets a flag (x-session-source) so routes can tell the
-   difference and start rejecting body-only callers in a future
-   sprint. */
-export function getSessionUserId(req: Request): { userId: string | null; source: 'session' | 'body-fallback' | 'none' } {
+   x-session-user-id request header that middleware injects. The
+   migration-window body fallback is gone — routes either get a
+   session header or they fail closed. */
+export function getSessionUserId(req: Request): { userId: string | null; source: 'session' | 'none' } {
   const headerId = req.headers.get('x-session-user-id');
   if (headerId) return { userId: headerId, source: 'session' };
   return { userId: null, source: 'none' };
+}
+
+/* Stricter sibling of getSessionUserId for mutation routes (Sprint 5,
+   item 24). Returns either the session userId (success) or a 401
+   NextResponse the route can return directly. Use:
+
+     const session = requireSessionUserId(req);
+     if (session instanceof NextResponse) return session;
+     const userId = session;
+
+   Optionally pass `bodyUserId` to also enforce the body↔session
+   match — returns a 403 if the two disagree, so attackers can't pass
+   another user's id in the body alongside their own cookie. */
+export function requireSessionUserId(
+  req: Request,
+  bodyUserId?: string | null | undefined,
+): string | NextResponse {
+  const headerId = req.headers.get('x-session-user-id');
+  if (!headerId) {
+    return NextResponse.json(
+      { success: false, error: 'Unauthenticated — session required.' },
+      { status: 401 },
+    );
+  }
+  if (bodyUserId && bodyUserId !== headerId) {
+    return NextResponse.json(
+      { success: false, error: 'Session userId does not match request userId.' },
+      { status: 403 },
+    );
+  }
+  return headerId;
 }

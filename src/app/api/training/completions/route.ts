@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { requireSessionUserId } from '@/lib/session';
 import { LESSON_COMPLETION_XP } from '@/types';
 
 /* Mirror of src/lib/utils.ts#calculateLevel so the server can persist a
@@ -71,12 +72,18 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { userId, lessonId, moduleId } = body;
 
-    if (!userId || !lessonId || !moduleId) {
+    if (!lessonId || !moduleId) {
       return NextResponse.json(
-        { success: false, error: 'userId, lessonId and moduleId required' },
+        { success: false, error: 'lessonId and moduleId required' },
         { status: 400 },
       );
     }
+
+    /* Auth: session is the source of truth. Body userId optional but
+       must match session if present. */
+    const sessionResult = requireSessionUserId(request, userId);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const sessionUserId = sessionResult;
 
     /* 1. Check whether this lesson is already complete for this user.
           The UNIQUE constraint would catch a double-insert, but checking
@@ -85,7 +92,7 @@ export async function POST(request: NextRequest) {
     const { data: existing, error: existingError } = await supabase
       .from('lesson_completions')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', sessionUserId)
       .eq('lesson_id', lessonId)
       .maybeSingle();
 
@@ -117,7 +124,7 @@ export async function POST(request: NextRequest) {
     const { data: inserted, error: insertError } = await supabase
       .from('lesson_completions')
       .insert({
-        user_id: userId,
+        user_id: sessionUserId,
         lesson_id: lessonId,
         module_id: moduleId,
         xp_awarded: LESSON_COMPLETION_XP,
@@ -139,7 +146,7 @@ export async function POST(request: NextRequest) {
     const { data: userRow, error: userFetchError } = await supabase
       .from('users')
       .select('xp, level')
-      .eq('id', userId)
+      .eq('id', sessionUserId)
       .single();
 
     if (userFetchError || !userRow) {
@@ -171,7 +178,7 @@ export async function POST(request: NextRequest) {
         level: newLevel,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', userId);
+      .eq('id', sessionUserId);
 
     if (userUpdateError) {
       console.error('Update user XP error:', userUpdateError);

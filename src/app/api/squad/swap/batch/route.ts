@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { requireSessionUserId } from '@/lib/session';
 import { getSeasonState, isWeekendWindowOpen } from '@/lib/season';
 import {
   AllocationStrategy,
@@ -47,12 +48,17 @@ export async function POST(req: NextRequest) {
       }>;
     };
 
-    if (!userId || !portfolioId || !Array.isArray(swaps) || swaps.length === 0) {
+    if (!portfolioId || !Array.isArray(swaps) || swaps.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 },
       );
     }
+    /* Auth: session is the source of truth. Body userId is optional
+       but if present must match the session. */
+    const sessionResult = requireSessionUserId(req, userId);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const sessionUserId = sessionResult;
     /* Defensive cap on the request size so a runaway client can't
        loop us. The per-weekend cap will catch most cases anyway. */
     if (swaps.length > WEEKEND_SUB_MAX_PER_WEEKEND) {
@@ -111,7 +117,7 @@ export async function POST(req: NextRequest) {
     if (pErr || !portfolio) {
       return NextResponse.json({ success: false, error: 'Portfolio not found' }, { status: 404 });
     }
-    if (portfolio.user_id !== userId) {
+    if (portfolio.user_id !== sessionUserId) {
       return NextResponse.json({ success: false, error: 'Not authorized' }, { status: 403 });
     }
 
@@ -119,7 +125,7 @@ export async function POST(req: NextRequest) {
     const { count: swapCountSoFar } = await supabase
       .from('weekend_swaps')
       .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
+      .eq('user_id', sessionUserId)
       .eq('portfolio_id', portfolioId)
       .eq('season_number', seasonState.seasonNumber)
       .eq('gameweek', seasonState.currentGameweek);
@@ -131,7 +137,7 @@ export async function POST(req: NextRequest) {
     const { data: dbUser, error: uErr } = await supabase
       .from('users')
       .select('xp')
-      .eq('id', userId)
+      .eq('id', sessionUserId)
       .single();
     if (uErr || !dbUser) {
       return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
@@ -347,7 +353,7 @@ export async function POST(req: NextRequest) {
 
     /* Batched insert for the log rows — one row per accepted swap. */
     const logRows = accepted.map((s) => ({
-      user_id: userId,
+      user_id: sessionUserId,
       portfolio_id: portfolioId,
       gameweek: seasonState.currentGameweek,
       season_number: seasonState.seasonNumber,
@@ -363,7 +369,7 @@ export async function POST(req: NextRequest) {
     const { error: xpErr } = await supabase
       .from('users')
       .update({ xp, updated_at: new Date().toISOString() })
-      .eq('id', userId);
+      .eq('id', sessionUserId);
     if (xpErr) {
       console.error('xp deduct failed:', xpErr);
     }

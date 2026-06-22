@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/lib/supabase';
+import { requireSessionUserId } from '@/lib/session';
 import { Formation, PortfolioPlayer, PortfolioSnapshot } from '@/types';
 import { getSeasonState, SeasonRow, currentWeekendKey } from '@/lib/season';
 
@@ -98,6 +99,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    /* Auth: only the portfolio owner may create snapshots. Reject if
+       no session, or if the session user doesn't own this portfolio. */
+    const sessionResult = requireSessionUserId(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const sessionUserId = sessionResult;
+
     // Fetch the live portfolio
     const { data: portfolio, error: portfolioError } = await supabase
       .from('portfolios')
@@ -109,6 +116,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Portfolio not found' },
         { status: 404 }
+      );
+    }
+
+    if (portfolio.user_id !== sessionUserId) {
+      return NextResponse.json(
+        { success: false, error: 'Not authorized to snapshot this portfolio' },
+        { status: 403 },
       );
     }
 

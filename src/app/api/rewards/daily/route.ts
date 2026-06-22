@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { requireSessionUserId } from '@/lib/session';
 import { DAILY_LOGIN_REWARDS } from '@/types';
 
 // GET - Check if user can claim daily reward and get streak info
@@ -70,15 +71,17 @@ export async function POST(request: NextRequest) {
   try {
     const { userId } = await request.json();
 
-    if (!userId) {
-      return NextResponse.json({ success: false, error: 'User ID required' }, { status: 400 });
-    }
+    /* Auth: session is the source of truth. Body userId optional but
+       must match session if present. */
+    const sessionResult = requireSessionUserId(request, userId);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const sessionUserId = sessionResult;
 
     // Get current streak info
     const { data: streak } = await supabase
       .from('user_streaks')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', sessionUserId)
       .single();
 
     const today = new Date().toISOString().split('T')[0];
@@ -108,7 +111,7 @@ export async function POST(request: NextRequest) {
     const { error: upsertError } = await supabase
       .from('user_streaks')
       .upsert({
-        user_id: userId,
+        user_id: sessionUserId,
         current_streak: newStreak,
         longest_streak: longestStreak,
         last_claim_date: today,
@@ -125,7 +128,7 @@ export async function POST(request: NextRequest) {
     const { error: rewardError } = await supabase
       .from('daily_rewards')
       .insert({
-        user_id: userId,
+        user_id: sessionUserId,
         xp_awarded: totalXp,
         streak_day: streakDayMod,
         streak_bonus: streakBonus,
@@ -137,7 +140,7 @@ export async function POST(request: NextRequest) {
 
     // Update user's XP
     const { error: xpError } = await supabase.rpc('increment_user_xp', {
-      p_user_id: userId,
+      p_user_id: sessionUserId,
       p_xp_amount: totalXp,
     });
 
@@ -146,20 +149,20 @@ export async function POST(request: NextRequest) {
       await supabase
         .from('users')
         .update({ xp: supabase.rpc('', {}) })
-        .eq('id', userId);
+        .eq('id', sessionUserId);
 
       // Direct update as fallback
       const { data: user } = await supabase
         .from('users')
         .select('xp')
-        .eq('id', userId)
+        .eq('id', sessionUserId)
         .single();
 
       if (user) {
         await supabase
           .from('users')
           .update({ xp: (user.xp || 0) + totalXp })
-          .eq('id', userId);
+          .eq('id', sessionUserId);
       }
     }
 

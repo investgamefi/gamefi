@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { requireSessionUserId } from '@/lib/session';
 
 // GET - Get user preferences
 export async function GET(request: NextRequest) {
@@ -56,9 +57,11 @@ export async function PUT(request: NextRequest) {
   try {
     const { userId, preferences } = await request.json();
 
-    if (!userId) {
-      return NextResponse.json({ success: false, error: 'User ID required' }, { status: 400 });
-    }
+    /* Auth: session is the source of truth. Body userId optional but
+       must match session if present. */
+    const sessionResult = requireSessionUserId(request, userId);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const sessionUserId = sessionResult;
 
     const updateData: any = { updated_at: new Date().toISOString() };
 
@@ -89,7 +92,7 @@ export async function PUT(request: NextRequest) {
     const { error } = await supabase
       .from('user_preferences')
       .upsert({
-        user_id: userId,
+        user_id: sessionUserId,
         ...updateData,
       }, { onConflict: 'user_id' });
 

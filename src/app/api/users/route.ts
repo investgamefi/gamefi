@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { requireSessionUserId } from '@/lib/session';
 import { TEAM_SLOT_UNLOCK_COST } from '@/types';
 
 // GET - Fetch user by ID
@@ -139,16 +140,21 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { userId, action } = body;
 
-    if (!userId) {
-      return NextResponse.json({ success: false, error: 'User ID required' }, { status: 400 });
-    }
+    /* Auth: session is the source of truth. Body userId optional but
+       must match session if present. */
+    const sessionResult = requireSessionUserId(request, userId);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const sessionUserId = sessionResult;
 
-    if (action === 'unlockTeamSlot') {
+    /* Accept both new name 'unlockSquadSlot' and legacy 'unlockTeamSlot'
+       so older callers (cached JS, mobile) keep working through the
+       vocab rename. */
+    if (action === 'unlockSquadSlot' || action === 'unlockTeamSlot') {
       // Get current user
       const { data: user, error: fetchError } = await supabase
         .from('users')
         .select('xp, max_teams')
-        .eq('id', userId)
+        .eq('id', sessionUserId)
         .single();
 
       if (fetchError || !user) {
@@ -170,7 +176,7 @@ export async function POST(request: NextRequest) {
           max_teams: (user.max_teams || 3) + 1,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', userId)
+        .eq('id', sessionUserId)
         .select()
         .single();
 
