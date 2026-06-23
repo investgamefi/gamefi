@@ -73,7 +73,34 @@ export const calculatePortfolioValue = (portfolio: Portfolio, initialInvestment 
   return totalValue;
 };
 
-// Generate mock historical data for a portfolio
+/* Hash a string into a 32-bit unsigned int — used to seed the per-portfolio
+   PRNG below so each squad has its own stable history. djb2-ish. */
+const hashStringToInt = (str: string): number => {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash + str.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+};
+
+/* Mulberry32 — small, fast, deterministic PRNG. We use a fresh instance
+   seeded per call so generatePortfolioHistory produces the SAME history
+   for the same (portfolio, day) on every call. */
+const mulberry32 = (seed: number) => () => {
+  let t = (seed = (seed + 0x6d2b79f5) >>> 0);
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+
+// Generate mock historical data for a portfolio.
+//
+// Must be deterministic for a given (portfolio.id, today) pair — earlier
+// it called Math.random() inline, so any unrelated re-render that flowed
+// through calculatePortfolioPerformance produced a new history and thus
+// new EQUITY/TOTAL/TODAY numbers. Toggling a like on the squad detail
+// page visibly reshuffled the headline stats. Now we seed a per-portfolio
+// PRNG so the curve is stable until the day rolls over.
 export const generatePortfolioHistory = (
   portfolio: Portfolio,
   days?: number
@@ -99,10 +126,15 @@ export const generatePortfolioHistory = (
     }];
   }
 
+  // Seed per (portfolio, day) — same portfolio loaded twice on the same
+  // day produces the same curve; tomorrow it shifts naturally.
+  const todaySeed = Math.floor(today.getTime() / 86400000);
+  const rng = mulberry32(hashStringToInt(portfolio.id || 'anon') ^ todaySeed);
+
   for (let i = actualDays; i >= 0; i--) {
     const date = subDays(new Date(), i);
-    // Random daily change between -3% and +3%
-    const dailyChange = (Math.random() - 0.48) * 0.06;
+    // Daily change between -2.88% and +3.12% (seeded — stable per portfolio)
+    const dailyChange = (rng() - 0.48) * 0.06;
     value = value * (1 + dailyChange);
     history.push({
       date: format(date, 'yyyy-MM-dd'),
