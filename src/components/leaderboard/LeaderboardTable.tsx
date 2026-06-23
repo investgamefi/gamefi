@@ -163,8 +163,12 @@ export const LeaderboardTable: React.FC = () => {
               ? 'oklch(0.55 0.14 50)'
               : 'var(--text-dim)';
           return (
-            <div
+            // Row wraps a Link so tapping anywhere on the manager/squad
+            // navigates straight to that squad detail page. Hover/active
+            // states are preserved via the inline handlers below.
+            <Link
               key={`${entry.portfolioId}-${i}`}
+              href={`/portfolio/${entry.portfolioId}`}
               style={{
                 display: 'grid',
                 gridTemplateColumns: '54px minmax(180px, 1.6fr) minmax(140px, 1.2fr) 110px 100px 110px',
@@ -174,6 +178,9 @@ export const LeaderboardTable: React.FC = () => {
                 borderTop: i === 0 ? 'none' : '1px solid var(--line)',
                 background: isYou ? 'var(--pitch-tint)' : 'transparent',
                 transition: 'background .12s ease',
+                color: 'inherit',
+                textDecoration: 'none',
+                cursor: 'pointer',
               }}
               onMouseEnter={(e) => {
                 if (!isYou) e.currentTarget.style.background = 'var(--surface-2)';
@@ -181,6 +188,7 @@ export const LeaderboardTable: React.FC = () => {
               onMouseLeave={(e) => {
                 if (!isYou) e.currentTarget.style.background = 'transparent';
               }}
+              aria-label={`View ${entry.portfolioName} squad by @${entry.username}`}
             >
               {/* Rank */}
               <div
@@ -235,15 +243,10 @@ export const LeaderboardTable: React.FC = () => {
                 </div>
               </div>
 
-              {/* Squad */}
-              <Link
-                href={`/portfolio/${entry.portfolioId}`}
-                style={{
-                  textDecoration: 'none',
-                  color: 'inherit',
-                  minWidth: 0,
-                }}
-              >
+              {/* Squad — was its own <Link>, but the whole row now
+                  navigates, so a nested anchor is invalid HTML.
+                  Plain div with the same visual style. */}
+              <div style={{ minWidth: 0 }}>
                 <div
                   className="display"
                   style={{
@@ -259,7 +262,7 @@ export const LeaderboardTable: React.FC = () => {
                 <div className="mono" style={{ fontSize: 10, color: 'var(--text-mute)' }}>
                   {entry.formation}
                 </div>
-              </Link>
+              </div>
 
               {/* Started */}
               <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>
@@ -304,7 +307,7 @@ export const LeaderboardTable: React.FC = () => {
                   </span>
                 )}
               </div>
-            </div>
+            </Link>
           );
         })}
           </div>

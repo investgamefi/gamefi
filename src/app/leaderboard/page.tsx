@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { AppLayout, LeaderboardTable } from '@/components';
 import { Icon } from '@/components/stadium/Icon';
 import { useStore } from '@/store/useStore';
@@ -138,17 +139,11 @@ export default function LeaderboardPage() {
           </div>
         </div>
 
-        {/* Podium */}
+        {/* Podium. Mobile stacks champion → runner-up → 3rd. Desktop
+            re-orders to the 2-1-3 staggered podium via CSS order
+            classes on each card (set in PodiumCard / Placeholder). */}
         {podium.length > 0 && (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 12,
-              alignItems: 'end',
-            }}
-          >
-            {/* 2nd · 1st · 3rd ordering for the podium effect */}
+          <div className="grid gap-3 sm:items-end [grid-template-columns:1fr] sm:[grid-template-columns:repeat(3,1fr)]">
             {[
               podium.find((t) => t.rank === 2),
               podium.find((t) => t.rank === 1),
@@ -176,10 +171,31 @@ const RANK_COLORS: Record<Rank, { color: string; height: number; label: string }
   3: { color: 'oklch(0.55 0.14 50)',  height: 150, label: '3RD PLACE'   },
 };
 
+/* Mobile order puts CHAMPION on top (rank 1 first, then 2, then 3).
+   Desktop reverts to the 2-1-3 staggered podium effect. */
+const orderClassFor = (rank: Rank): string =>
+  rank === 1
+    ? 'order-1 sm:order-2'
+    : rank === 2
+    ? 'order-2 sm:order-1'
+    : 'order-3 sm:order-3';
+
+const heightClassFor = (rank: Rank): string =>
+  rank === 1
+    ? 'h-auto sm:h-[200px]'
+    : rank === 2
+    ? 'h-auto sm:h-[170px]'
+    : 'h-auto sm:h-[150px]';
+
 const PodiumCard: React.FC<{ entry: PodiumEntry }> = ({ entry }) => {
   const cfg = RANK_COLORS[entry.rank];
   return (
-    <div style={{ height: cfg.height, position: 'relative' }}>
+    <Link
+      href={`/portfolio/${entry.portfolioId}`}
+      className={`${orderClassFor(entry.rank)} ${heightClassFor(entry.rank)} relative block no-underline`}
+      style={{ color: 'inherit' }}
+      aria-label={`View ${entry.portfolioName} squad by @${entry.username}`}
+    >
       <div
         className="stadium-card"
         style={{
@@ -189,6 +205,7 @@ const PodiumCard: React.FC<{ entry: PodiumEntry }> = ({ entry }) => {
           flexDirection: 'column',
           justifyContent: 'space-between',
           borderTop: `4px solid ${cfg.color}`,
+          cursor: 'pointer',
         }}
       >
         <div className="flex justify-between" style={{ alignItems: 'flex-start' }}>
@@ -246,14 +263,14 @@ const PodiumCard: React.FC<{ entry: PodiumEntry }> = ({ entry }) => {
           </div>
         </div>
       </div>
-    </div>
+    </Link>
   );
 };
 
 const PodiumPlaceholder: React.FC<{ rank: Rank }> = ({ rank }) => {
   const cfg = RANK_COLORS[rank];
   return (
-    <div style={{ height: cfg.height, position: 'relative' }}>
+    <div className={`${orderClassFor(rank)} ${heightClassFor(rank)} relative`}>
       <div
         className="stadium-card"
         style={{
