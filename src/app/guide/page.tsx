@@ -494,25 +494,13 @@ export default function GuidePage() {
           </div>
         </div>
 
-        {/* Two-column layout: chapter rail + content panel */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0, 280px) minmax(0, 1fr)',
-            gap: 16,
-            alignItems: 'start',
-          }}
-        >
+        {/* Two-column layout: chapter rail + content panel.
+            Mobile stacks vertically; the rail's sticky positioning is
+            gated to sm+ so it doesn't float over the chapter body
+            below it in single-column mode. */}
+        <div className="grid items-start gap-4 [grid-template-columns:1fr] sm:[grid-template-columns:minmax(0,280px)_minmax(0,1fr)]">
           {/* Chapter rail */}
-          <nav
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-              position: 'sticky',
-              top: 80,
-            }}
-          >
+          <nav className="flex flex-col gap-2 sm:sticky sm:top-20">
             {CHAPTERS.map((ch) => {
               const isActive = ch.id === activeId;
               const isDone = visited.has(ch.id) && !isActive;

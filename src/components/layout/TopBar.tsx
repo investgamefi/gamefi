@@ -125,7 +125,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, sidebarCollapsed })
              header reads as one row of status badges. */}
           {seasonState?.isTransferWindowOpen && (
             <span
-              className="pill pill-pitch hidden sm:inline-flex"
+              className="pill pill-pitch !hidden sm:!inline-flex"
               style={{
                 flexShrink: 0,
                 background: 'oklch(0.72 0.21 145 / 0.16)',
@@ -146,7 +146,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick, sidebarCollapsed })
           )}
           {seasonState?.isWeekendWindowOpen && (
             <span
-              className="pill pill-whistle hidden md:inline-flex"
+              className="pill pill-whistle !hidden md:!inline-flex"
               style={{ flexShrink: 0 }}
               title="Weekend swap window open: sub up to 4 starters with bench for 25 XP each"
             >

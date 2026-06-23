@@ -314,12 +314,10 @@ export function DrillsView({ onSwitchToReference }: DrillsViewProps) {
               const featuredLessons = featured.lessons.length;
               return (
                 <div
-                  className="stadium-card"
+                  className="stadium-card grid [grid-template-columns:1fr] sm:[grid-template-columns:minmax(0,1.4fr)_minmax(0,1fr)]"
                   onClick={() => setSelectedModule(featured)}
                   style={{
                     padding: 0,
-                    display: 'grid',
-                    gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)',
                     overflow: 'hidden',
                     cursor: 'pointer',
                     minHeight: 200,
@@ -833,14 +831,10 @@ export function DrillsView({ onSwitchToReference }: DrillsViewProps) {
               <Icon.Arrow size={12} style={{ transform: 'rotate(180deg)' }} /> BACK TO {selectedModule.title.toUpperCase()}
             </button>
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)',
-                gap: 16,
-                alignItems: 'start',
-              }}
-            >
+            {/* Lesson body + COACH'S TAKEAWAYS sidebar. Stacks
+                vertically on phones (where the 1fr takeaways column
+                used to be ~80px wide, forcing one-word-per-line). */}
+            <div className="grid items-start gap-4 [grid-template-columns:1fr] sm:[grid-template-columns:minmax(0,2fr)_minmax(0,1fr)]">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div className="stadium-card" style={{ padding: 24 }}>
                   <div className="kicker">LESSON</div>
