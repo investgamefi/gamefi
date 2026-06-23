@@ -2624,14 +2624,17 @@ const RosterRow: React.FC<{
             Transfer out
           </button>
         ) : (
+          // Informational hint for starters; redundant on phones where
+          // the Sub off button is already visible and crowds the row.
+          // Shown on tablet+; tooltip on the Sub off button itself
+          // carries the same context on mobile.
           <span
-            className="mono"
+            className="mono hidden sm:inline-flex items-center"
             style={{
               padding: '6px 8px',
               fontSize: 9,
               color: 'var(--text-mute)',
               letterSpacing: '0.06em',
-              alignSelf: 'center',
             }}
             title="Starters can't be transferred out directly — sub them to the bench first, then transfer out from there."
           >
