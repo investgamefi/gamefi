@@ -194,7 +194,7 @@ export default function ExplorePage() {
         {filteredPortfolios.length === 0 ? (
           <div
             className="stadium-card"
-            style={{ padding: 48, textAlign: 'center', borderStyle: 'dashed' }}
+            style={{ padding: 'clamp(24px, 6vw, 48px)', textAlign: 'center', borderStyle: 'dashed' }}
           >
             <Icon.Scout size={40} style={{ color: 'var(--text-mute)', margin: '0 auto 12px' }} />
             <div className="display" style={{ fontSize: 18, marginBottom: 6 }}>

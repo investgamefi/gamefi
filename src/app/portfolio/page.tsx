@@ -225,7 +225,7 @@ export default function PortfolioListPage() {
           <div
             className="stadium-card"
             style={{
-              padding: 60,
+              padding: 'clamp(28px, 8vw, 60px)',
               textAlign: 'center',
               borderStyle: 'dashed',
             }}
@@ -251,7 +251,7 @@ export default function PortfolioListPage() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))',
               gap: 14,
             }}
           >

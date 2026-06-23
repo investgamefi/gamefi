@@ -400,7 +400,7 @@ export default function PortfolioDetailPage() {
   if (loading) {
     return (
       <AppLayout flush>
-        <div style={{ padding: 60, textAlign: 'center' }}>
+        <div style={{ padding: 'clamp(28px, 8vw, 60px)', textAlign: 'center' }}>
           <div
             className="stadium-spinner"
             style={{ width: 32, height: 32, margin: '0 auto 14px' }}
@@ -420,7 +420,7 @@ export default function PortfolioDetailPage() {
   if (!portfolio) {
     return (
       <AppLayout flush>
-        <div style={{ padding: 60, textAlign: 'center' }}>
+        <div style={{ padding: 'clamp(28px, 8vw, 60px)', textAlign: 'center' }}>
           <Icon.Pitch size={48} style={{ color: 'var(--text-mute)', margin: '0 auto 12px' }} />
           <div className="display" style={{ fontSize: 22, marginBottom: 6 }}>Squad not found</div>
           <div className="mono" style={{ fontSize: 12, color: 'var(--text-mute)', marginBottom: 20 }}>

@@ -319,14 +319,14 @@ export default function MarketPage() {
           </div>
 
           {isSearching && searchTerm.trim() && (
-            <div style={{ padding: 48, textAlign: 'center' }}>
+            <div style={{ padding: 'clamp(24px, 6vw, 48px)', textAlign: 'center' }}>
               <div className="stadium-spinner" style={{ margin: '0 auto 12px', width: 32, height: 32 }} />
               <div className="kicker">SEARCHING FOR “{searchTerm}”…</div>
             </div>
           )}
 
           {!isSearching && filteredAssets.length === 0 && (
-            <div className="kicker" style={{ padding: 48, textAlign: 'center' }}>
+            <div className="kicker" style={{ padding: 'clamp(24px, 6vw, 48px)', textAlign: 'center' }}>
               NO TICKERS MATCH THIS FILTER
             </div>
           )}

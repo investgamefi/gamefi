@@ -444,7 +444,7 @@ export default function DashboardPage() {
               <div
                 className="stadium-card"
                 style={{
-                  padding: 60,
+                  padding: 'clamp(28px, 8vw, 60px)',
                   textAlign: 'center',
                   borderStyle: 'dashed',
                 }}

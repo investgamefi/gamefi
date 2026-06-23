@@ -195,7 +195,7 @@ export default function ChallengesPage() {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))',
                 gap: 14,
               }}
             >
@@ -443,12 +443,7 @@ const BigMatchCard: React.FC<{ challenge: Challenge; myUserId?: string }> = ({ c
       </div>
 
       <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr auto 1fr',
-          gap: 14,
-          alignItems: 'center',
-        }}
+        className="grid items-center gap-3 sm:gap-4 [grid-template-columns:1fr] sm:[grid-template-columns:1fr_auto_1fr]"
       >
         <div>
           <div className="kicker">YOU</div>
@@ -480,13 +475,13 @@ const BigMatchCard: React.FC<{ challenge: Challenge; myUserId?: string }> = ({ c
         </div>
 
         <div
-          className="display"
+          className="display text-center"
           style={{ fontSize: 13, color: 'var(--text-mute)', letterSpacing: '0.2em' }}
         >
           VS
         </div>
 
-        <div style={{ textAlign: 'right' }}>
+        <div className="text-left sm:text-right">
           <div className="kicker">{opponentName.toUpperCase()}</div>
           <div
             className="display num"
