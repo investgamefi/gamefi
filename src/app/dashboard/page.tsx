@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useStore } from '@/store/useStore';
 import { AppLayout, Modal, Input } from '@/components';
 import { Icon } from '@/components/stadium/Icon';
-import { Formation, FORMATIONS, PortfolioPerformance, TEAM_SLOT_UNLOCK_COST, Challenge } from '@/types';
+import { Formation, FORMATIONS, Portfolio, PortfolioPerformance, TEAM_SLOT_UNLOCK_COST, Challenge } from '@/types';
 import {
   formatCurrency,
   formatPercent,
@@ -16,6 +16,7 @@ import {
 } from '@/lib/utils';
 import { fetchMultiplePortfolioPerformances } from '@/hooks/usePortfolioRealPerformance';
 import { fetchBenchmarkHistoricalData } from '@/lib/benchmarkData';
+import { fetchQuotesBatch, LiveQuote } from '@/lib/yahooFinance';
 import { MOCK_ASSETS } from '@/data/assets';
 
 /* Real SPY benchmark snapshot fetched on mount — used by the Scoreboard
@@ -191,6 +192,32 @@ export default function DashboardPage() {
     run();
   }, [portfolios]);
 
+  /* Live quotes for every ticker across the user's squads — powers a
+     REAL "TODAY" on the scoreboard. fetchMultiplePortfolioPerformances
+     merges real totals onto the base performance but never overlays
+     dayReturnPercent, so that one number was still the mock walk's. */
+  const [liveQuotes, setLiveQuotes] = useState<Map<string, LiveQuote>>(new Map());
+  const squadSymbolsKey = useMemo(() => {
+    const syms = new Set<string>();
+    portfolios.forEach((p) =>
+      p.players.forEach((pl) => {
+        if (pl.asset) syms.add(pl.asset.symbol.toUpperCase());
+      }),
+    );
+    return [...syms].sort().join(',');
+  }, [portfolios]);
+
+  useEffect(() => {
+    if (!squadSymbolsKey) return;
+    let cancelled = false;
+    fetchQuotesBatch(squadSymbolsKey.split(',')).then((quotes) => {
+      if (!cancelled && quotes.size > 0) setLiveQuotes(quotes);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [squadSymbolsKey]);
+
   /* loadChallenges chains loadLiveReturns internally once it sees an
      active fixture, so the Live Fixtures cards on the Dashboard pick
      up real %s without an extra effect here. */
@@ -233,8 +260,30 @@ export default function DashboardPage() {
     const totalReturn = performances.reduce((sum, p) => sum + p.totalReturn, 0);
     const avgReturnPercent =
       performances.reduce((sum, p) => sum + p.totalReturnPercent, 0) / performances.length;
-    const dayReturnPercent =
-      performances.reduce((sum, p) => sum + p.dayReturnPercent, 0) / performances.length;
+
+    /* TODAY per squad: allocation-weighted live intraday change over
+       its starters, renormalized to the weights we have quotes for.
+       Falls back to the squad's stored dayReturnPercent when no quote
+       resolved (brief pre-load window). */
+    const liveDayFor = (p: Portfolio): number | null => {
+      const players = p.players.filter((pl) => pl.asset && !pl.isBench);
+      const total = players.reduce((s, pl) => s + (pl.allocation || 0), 0);
+      if (total <= 0) return null;
+      let weighted = 0;
+      let covered = 0;
+      players.forEach((pl) => {
+        const quote = liveQuotes.get(pl.asset!.symbol.toUpperCase());
+        if (quote) {
+          const w = (pl.allocation || 0) / total;
+          weighted += w * quote.dayChangePercent;
+          covered += w;
+        }
+      });
+      return covered > 0 ? weighted / covered : null;
+    };
+    const dayReturns = portfolios.map((p, i) => liveDayFor(p) ?? performances[i].dayReturnPercent);
+    const dayReturnPercent = dayReturns.reduce((s, v) => s + v, 0) / dayReturns.length;
+
     return {
       totalValue,
       totalReturn,
@@ -243,7 +292,7 @@ export default function DashboardPage() {
       count: portfolios.length,
       isLoading: loadingStats,
     };
-  }, [portfolios, realPerformances, loadingStats]);
+  }, [portfolios, realPerformances, loadingStats, liveQuotes]);
 
   const topPerformers = useMemo(() => {
     const baseEntries = getLeaderboardEntries('all', 5);
@@ -852,7 +901,7 @@ const Scoreboard: React.FC<{
             <ScoreboardStat
               label="TODAY"
               value={`${todayPct >= 0 ? '+' : ''}${todayPct.toFixed(2)}%`}
-              tone="pos"
+              tone={todayPct >= 0 ? 'pos' : 'neg'}
             />
           </div>
         </div>
