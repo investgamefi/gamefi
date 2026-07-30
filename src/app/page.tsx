@@ -6,6 +6,8 @@ import { useStore } from '@/store/useStore';
 import { LoginForm, RegisterForm } from '@/components';
 import { Icon } from '@/components/stadium/Icon';
 import { Pitch, PHOENIX_XI_LINEUP } from '@/components/stadium/Pitch';
+import { getMarketPillSpec, getMarketStatus, MarketStatus } from '@/lib/marketHours';
+import { fetchQuotesBatch } from '@/lib/yahooFinance';
 
 type AuthView = 'login' | 'register' | 'landing';
 
@@ -20,40 +22,46 @@ export default function Home() {
   const router = useRouter();
   const { isAuthenticated, isLoading, loadData } = useStore();
   const [authView, setAuthView] = useState<AuthView>('landing');
+
+  /* /login and /register redirect here with ?view=… — honor it on
+     mount. Read from window.location instead of useSearchParams to
+     avoid wrapping the whole page in a Suspense boundary. */
+  useEffect(() => {
+    const view = new URLSearchParams(window.location.search).get('view');
+    if (view === 'login' || view === 'register') setAuthView(view);
+  }, []);
   const [tickerData, setTickerData] = useState<Tick[]>(
     () => TICKER_SYMBOLS.map((sym) => ({ sym, px: null, day: null })),
   );
 
-  // Fetch real prices for the ticker tape. Each symbol hits the Yahoo Finance
-  // proxy in parallel; cells stay blank-but-shaped until their fetch resolves,
-  // so the row never jumps. Failures just leave a cell skeleton — they don't
-  // block the rest of the tape.
+  // Fetch real prices for the ticker tape in ONE batched call (was 10
+  // separate proxy hits — 10 serverless invocations for a marketing
+  // strip). Cells stay blank-but-shaped until the batch resolves;
+  // unresolvable symbols keep their skeleton.
   useEffect(() => {
     let cancelled = false;
-    Promise.all(
-      TICKER_SYMBOLS.map(async (sym): Promise<Tick> => {
-        try {
-          const res = await fetch(`/api/yahoo-finance?symbol=${sym}`);
-          const data = await res.json();
-          if (data.success && data.asset) {
-            return {
-              sym,
-              px: data.asset.currentPrice ?? null,
-              day: data.asset.dayChangePercent ?? null,
-            };
-          }
-        } catch {
-          /* swallow per-symbol failures */
-        }
-        return { sym, px: null, day: null };
-      }),
-    ).then((results) => {
-      if (!cancelled) setTickerData(results);
+    fetchQuotesBatch(TICKER_SYMBOLS).then((quotes) => {
+      if (cancelled) return;
+      setTickerData(
+        TICKER_SYMBOLS.map((sym) => {
+          const q = quotes.get(sym);
+          return { sym, px: q?.currentPrice ?? null, day: q?.dayChangePercent ?? null };
+        }),
+      );
     });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  /* Real NYSE clock for the ticker pill — the old pill was hardcoded
+     "MARKET OPEN", pulsing red at 2am Sunday. Same lib the TopBar uses. */
+  const [marketStatus, setMarketStatus] = useState<MarketStatus>(() => getMarketStatus());
+  useEffect(() => {
+    const id = setInterval(() => setMarketStatus(getMarketStatus()), 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+  const marketPill = getMarketPillSpec(marketStatus);
 
   useEffect(() => {
     loadData();
@@ -119,15 +127,31 @@ export default function Home() {
       >
         <div className="flex" style={{ gap: 40, paddingLeft: 24, whiteSpace: 'nowrap' }}>
           <span
-            className="pill pill-red"
-            style={{
-              background: 'oklch(0.65 0.22 25 / 0.18)',
-              borderColor: 'transparent',
-              color: '#ff7766',
-              flexShrink: 0,
-            }}
+            className="pill"
+            style={
+              marketPill.role === 'live'
+                ? {
+                    background: 'oklch(0.65 0.22 25 / 0.18)',
+                    borderColor: 'transparent',
+                    color: '#ff7766',
+                    flexShrink: 0,
+                  }
+                : marketPill.role === 'amber'
+                ? {
+                    background: 'oklch(0.83 0.18 90 / 0.16)',
+                    borderColor: 'transparent',
+                    color: 'oklch(0.83 0.18 90)',
+                    flexShrink: 0,
+                  }
+                : {
+                    background: 'rgba(255,255,255,0.08)',
+                    borderColor: 'transparent',
+                    color: 'rgba(255,255,255,0.55)',
+                    flexShrink: 0,
+                  }
+            }
           >
-            <span className="live-dot" /> MARKET OPEN
+            {marketPill.role === 'live' && <span className="live-dot" />} {marketPill.label}
           </span>
           {tickerData.map((s) => {
             const hasData = s.px != null && s.day != null;

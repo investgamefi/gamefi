@@ -196,7 +196,7 @@ export default function ForgotPasswordPage() {
 
               <div style={{ marginTop: 22 }}>
                 <Link
-                  href="/"
+                  href="/?view=login"
                   className="mono"
                   style={{
                     color: 'var(--pitch)',
@@ -253,7 +253,7 @@ export default function ForgotPasswordPage() {
 
               <div style={{ marginTop: 18, textAlign: 'center' }}>
                 <Link
-                  href="/"
+                  href="/?view=login"
                   className="mono"
                   style={{
                     color: 'var(--text-dim)',
