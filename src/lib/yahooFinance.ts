@@ -226,6 +226,9 @@ export interface LiveQuote {
   dayChangePercent: number;
   weekHigh52: number;
   weekLow52: number;
+  /* 0 when the batch fell back to spark (no cap data) — overlay keeps
+     the asset's existing value in that case. */
+  marketCap: number;
 }
 
 const quoteCache: Map<string, { quote: LiveQuote; timestamp: number }> = new Map();
@@ -311,6 +314,7 @@ export function applyLiveQuote(asset: Asset, quote: LiveQuote | undefined): Asse
     dayChangePercent: quote.dayChangePercent,
     weekHigh52: quote.weekHigh52 > 0 ? quote.weekHigh52 : asset.weekHigh52,
     weekLow52: quote.weekLow52 > 0 ? quote.weekLow52 : asset.weekLow52,
+    marketCap: quote.marketCap > 0 ? quote.marketCap : asset.marketCap,
   };
 }
 

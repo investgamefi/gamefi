@@ -87,6 +87,114 @@ interface LiveQuote {
   dayChangePercent: number;
   weekHigh52: number;
   weekLow52: number;
+  /* From the v7 quote endpoint; 0 when only spark data was available
+     (spark carries no cap) — consumers keep their existing value. */
+  marketCap: number;
+}
+
+const YAHOO_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+/* ---- Cookie + crumb handshake for the v7 quote endpoint ----
+   Since 2023 Yahoo's quote API rejects anonymous calls with 401
+   "Invalid Crumb". The dance: hit fc.yahoo.com to receive a session
+   cookie, then exchange it at /v1/test/getcrumb for a crumb token,
+   then pass BOTH on quote calls. Cached ~30 min; a 401/403 on a quote
+   call clears the cache so the next request re-handshakes. */
+const CRUMB_TTL = 30 * 60 * 1000;
+let crumbState: { cookie: string; crumb: string; timestamp: number } | null = null;
+
+async function getYahooAuth(): Promise<{ cookie: string; crumb: string } | null> {
+  if (crumbState && Date.now() - crumbState.timestamp < CRUMB_TTL) {
+    return crumbState;
+  }
+  try {
+    const cookieRes = await fetch('https://fc.yahoo.com', {
+      headers: { 'User-Agent': YAHOO_UA },
+      cache: 'no-store',
+      redirect: 'manual',
+    });
+    /* Node's undici exposes getSetCookie(); guard for older runtimes. */
+    const rawCookies: string[] =
+      typeof cookieRes.headers.getSetCookie === 'function'
+        ? cookieRes.headers.getSetCookie()
+        : cookieRes.headers.get('set-cookie')
+        ? [cookieRes.headers.get('set-cookie')!]
+        : [];
+    const cookie = rawCookies.map((c) => c.split(';')[0].trim()).filter(Boolean).join('; ');
+    if (!cookie) return null;
+
+    const crumbRes = await fetch('https://query1.finance.yahoo.com/v1/test/getcrumb', {
+      headers: { 'User-Agent': YAHOO_UA, Cookie: cookie },
+      cache: 'no-store',
+    });
+    if (!crumbRes.ok) return null;
+    const crumb = (await crumbRes.text()).trim();
+    if (!crumb || crumb.includes('<')) return null;
+
+    crumbState = { cookie, crumb, timestamp: Date.now() };
+    return crumbState;
+  } catch (error) {
+    console.error('Yahoo crumb handshake failed:', error);
+    return null;
+  }
+}
+
+interface YahooV7Quote {
+  symbol?: string;
+  regularMarketPrice?: number;
+  regularMarketPreviousClose?: number;
+  regularMarketChange?: number;
+  regularMarketChangePercent?: number;
+  fiftyTwoWeekHigh?: number;
+  fiftyTwoWeekLow?: number;
+  marketCap?: number;
+}
+
+const V7_CHUNK_SIZE = 60;
+
+/* Primary batch source: v7 quote — one call per 60 tickers, carries
+   marketCap + 52-week range on top of price/day-change. Returns null
+   when auth or the call fails so the caller can fall back to spark. */
+async function fetchQuoteChunkV7(symbols: string[]): Promise<LiveQuote[] | null> {
+  const auth = await getYahooAuth();
+  if (!auth) return null;
+  try {
+    const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbols.join(','))}&crumb=${encodeURIComponent(auth.crumb)}`;
+    const response = await fetch(url, {
+      headers: { 'User-Agent': YAHOO_UA, Cookie: auth.cookie },
+      cache: 'no-store',
+    });
+    if (response.status === 401 || response.status === 403) {
+      crumbState = null; // stale crumb — force re-handshake next call
+      return null;
+    }
+    if (!response.ok) return null;
+    const data: { quoteResponse?: { result?: YahooV7Quote[] | null } } = await response.json();
+    const quotes: LiveQuote[] = [];
+    for (const q of data.quoteResponse?.result ?? []) {
+      const currentPrice = q.regularMarketPrice || 0;
+      if (!q.symbol || !(currentPrice > 0)) continue;
+      const previousClose = q.regularMarketPreviousClose || 0;
+      quotes.push({
+        symbol: q.symbol.toUpperCase(),
+        currentPrice,
+        previousClose,
+        dayChange:
+          q.regularMarketChange ?? (previousClose > 0 ? currentPrice - previousClose : 0),
+        dayChangePercent:
+          q.regularMarketChangePercent ??
+          (previousClose > 0 ? ((currentPrice - previousClose) / previousClose) * 100 : 0),
+        weekHigh52: q.fiftyTwoWeekHigh || 0,
+        weekLow52: q.fiftyTwoWeekLow || 0,
+        marketCap: q.marketCap || 0,
+      });
+    }
+    return quotes;
+  } catch (error) {
+    console.error('Yahoo v7 quote batch failed:', error);
+    return null;
+  }
 }
 
 /* Spark's real response is a FLAT object keyed by symbol (verified
@@ -120,6 +228,7 @@ function sparkEntryToLiveQuote(symbol: string, entry: YahooSparkEntry): LiveQuot
     dayChangePercent,
     weekHigh52: 0,
     weekLow52: 0,
+    marketCap: 0,
   };
 }
 
@@ -176,18 +285,33 @@ export async function GET(request: NextRequest) {
       );
     }
     try {
-      const chunks: string[][] = [];
-      for (let i = 0; i < symbols.length; i += SPARK_CHUNK_SIZE) {
-        chunks.push(symbols.slice(i, i + SPARK_CHUNK_SIZE));
+      /* Primary: v7 quote (marketCap + 52-week range). Fallback: spark
+         (price/day-change only) when the crumb handshake or any quote
+         chunk fails — degraded but never empty because of auth. */
+      const v7Chunks: string[][] = [];
+      for (let i = 0; i < symbols.length; i += V7_CHUNK_SIZE) {
+        v7Chunks.push(symbols.slice(i, i + V7_CHUNK_SIZE));
       }
-      const results = await Promise.all(chunks.map(fetchSparkChunk));
+      const v7Results = await Promise.all(v7Chunks.map(fetchQuoteChunkV7));
+
+      let allQuotes: LiveQuote[];
+      if (v7Results.every((r): r is LiveQuote[] => r !== null)) {
+        allQuotes = v7Results.flat();
+      } else {
+        const sparkChunks: string[][] = [];
+        for (let i = 0; i < symbols.length; i += SPARK_CHUNK_SIZE) {
+          sparkChunks.push(symbols.slice(i, i + SPARK_CHUNK_SIZE));
+        }
+        allQuotes = (await Promise.all(sparkChunks.map(fetchSparkChunk))).flat();
+      }
+
       const quotes: Record<string, LiveQuote> = {};
-      for (const quote of results.flat()) {
+      for (const quote of allQuotes) {
         quotes[quote.symbol] = quote;
       }
       return NextResponse.json({ success: true, quotes });
     } catch (error) {
-      console.error('Yahoo spark batch error:', error);
+      console.error('Yahoo batch quote error:', error);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch batch quotes' },
         { status: 500 },
@@ -308,6 +432,18 @@ export async function GET(request: NextRequest) {
     }
 
     const asset = mapChartToAsset(meta);
+
+    /* Chart API never returns marketCap, so Yahoo-sourced search rows
+       used to render $0.00 in the CAP column. Enrich from the v7 quote
+       when auth is available; on failure the asset ships as-is. */
+    const v7 = await fetchQuoteChunkV7([upperSymbol]);
+    const quote = v7?.[0];
+    if (quote) {
+      asset.marketCap = quote.marketCap > 0 ? quote.marketCap : asset.marketCap;
+      asset.weekHigh52 = quote.weekHigh52 > 0 ? quote.weekHigh52 : asset.weekHigh52;
+      asset.weekLow52 = quote.weekLow52 > 0 ? quote.weekLow52 : asset.weekLow52;
+    }
+
     return NextResponse.json({ success: true, asset });
   } catch (error) {
     console.error('Yahoo Finance API error:', error);
