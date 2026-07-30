@@ -74,10 +74,126 @@ function mapChartToAsset(meta: YahooChartMeta): Asset {
   };
 }
 
+/* Light per-symbol quote used by the ?symbols= batch mode. Spark's
+   meta is the same shape as the chart API's, but sector/beta/PE never
+   come back from either — batch consumers overlay these numbers onto
+   assets they already have. Mirrored as LiveQuote in lib/yahooFinance
+   (route files may only export route handlers). */
+interface LiveQuote {
+  symbol: string;
+  currentPrice: number;
+  previousClose: number;
+  dayChange: number;
+  dayChangePercent: number;
+  weekHigh52: number;
+  weekLow52: number;
+}
+
+/* Spark's real response is a FLAT object keyed by symbol (verified
+   against the live endpoint — not the nested spark.result shape some
+   docs describe):
+     { "MU": { "symbol": "MU", "close": [739.0],
+               "chartPreviousClose": 820.53, ... }, ... }
+   No 52-week data here; weekHigh52/weekLow52 stay 0 and consumers
+   keep their existing values for those fields. */
+interface YahooSparkEntry {
+  symbol?: string;
+  close?: Array<number | null> | null;
+  chartPreviousClose?: number | null;
+}
+
+const SPARK_CHUNK_SIZE = 20;
+const BATCH_MAX_SYMBOLS = 120;
+
+function sparkEntryToLiveQuote(symbol: string, entry: YahooSparkEntry): LiveQuote | null {
+  const closes = (entry.close ?? []).filter((c): c is number => typeof c === 'number' && c > 0);
+  const currentPrice = closes.length > 0 ? closes[closes.length - 1] : 0;
+  if (!(currentPrice > 0)) return null;
+  const previousClose = entry.chartPreviousClose || 0;
+  const dayChange = previousClose > 0 ? currentPrice - previousClose : 0;
+  const dayChangePercent = previousClose > 0 ? (dayChange / previousClose) * 100 : 0;
+  return {
+    symbol: symbol.toUpperCase(),
+    currentPrice,
+    previousClose,
+    dayChange,
+    dayChangePercent,
+    weekHigh52: 0,
+    weekLow52: 0,
+  };
+}
+
+async function fetchSparkChunk(symbols: string[]): Promise<LiveQuote[]> {
+  const url = `https://query1.finance.yahoo.com/v8/finance/spark?symbols=${encodeURIComponent(symbols.join(','))}&range=1d&interval=1d`;
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    },
+    cache: 'no-store',
+  });
+  if (!response.ok) {
+    console.error(`Yahoo spark API returned ${response.status} for chunk of ${symbols.length}`);
+    return [];
+  }
+  const data: Record<string, YahooSparkEntry> = await response.json();
+  const quotes: LiveQuote[] = [];
+  for (const [symbol, entry] of Object.entries(data)) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    const quote = sparkEntryToLiveQuote(entry.symbol || symbol, entry);
+    if (quote) quotes.push(quote);
+  }
+  return quotes;
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const symbol = searchParams.get('symbol');
   const query = searchParams.get('q');
+  const symbolsParam = searchParams.get('symbols');
+
+  /* Batch quote mode: ?symbols=MU,MSFT,NVDA → { quotes: { MU: {...} } }.
+     One spark request per 20 tickers instead of one chart request per
+     ticker, so the market page can refresh its whole catalog in a
+     couple of upstream calls. Unresolvable symbols are simply absent
+     from the map — callers keep their existing numbers for those. */
+  if (symbolsParam !== null) {
+    const symbolRegexBatch = /^[A-Za-z0-9.\-^=]{1,12}$/;
+    const symbols = [
+      ...new Set(
+        symbolsParam
+          .split(',')
+          .map((s) => s.trim().toUpperCase())
+          .filter((s) => s && symbolRegexBatch.test(s)),
+      ),
+    ];
+    if (symbols.length === 0) {
+      return NextResponse.json({ success: true, quotes: {} });
+    }
+    if (symbols.length > BATCH_MAX_SYMBOLS) {
+      return NextResponse.json(
+        { success: false, error: `Too many symbols (max ${BATCH_MAX_SYMBOLS})` },
+        { status: 400 },
+      );
+    }
+    try {
+      const chunks: string[][] = [];
+      for (let i = 0; i < symbols.length; i += SPARK_CHUNK_SIZE) {
+        chunks.push(symbols.slice(i, i + SPARK_CHUNK_SIZE));
+      }
+      const results = await Promise.all(chunks.map(fetchSparkChunk));
+      const quotes: Record<string, LiveQuote> = {};
+      for (const quote of results.flat()) {
+        quotes[quote.symbol] = quote;
+      }
+      return NextResponse.json({ success: true, quotes });
+    } catch (error) {
+      console.error('Yahoo spark batch error:', error);
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch batch quotes' },
+        { status: 500 },
+      );
+    }
+  }
 
   /* Name/ticker search mode: ?q=microsoft → candidate tickers.
      Yahoo's autocomplete endpoint matches by company name natively,

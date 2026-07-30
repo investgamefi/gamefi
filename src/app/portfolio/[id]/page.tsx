@@ -46,6 +46,7 @@ import {
   formatRatio,
 } from '@/lib/utils';
 import { usePortfolioFundamentals } from '@/hooks/usePortfolioFundamentals';
+import { fetchQuotesBatch, applyLiveQuote } from '@/lib/yahooFinance';
 import { Icon } from '@/components/stadium/Icon';
 
 const SECTOR_HUES: Record<string, number> = {
@@ -239,6 +240,51 @@ export default function PortfolioDetailPage() {
       cancelled = true;
     };
   }, [portfolioId, currentUser?.id]);
+
+  /* Live-price overlay: player assets are snapshots stored in the
+     portfolio JSON, so their prices go stale between edits. One batched
+     quote call refreshes every filled player's market numbers (pitch
+     chips, holdings tab, roster rows). Keyed on the SYMBOL SET — not
+     the players array — and guarded by a no-op check so overlaying
+     doesn't retrigger itself in a loop. Display-only until the next
+     save, which then persists the fresher snapshot as a side effect. */
+  const playerSymbolsKey = useMemo(() => {
+    if (!portfolio) return '';
+    return [
+      ...new Set(
+        portfolio.players
+          .filter((p) => p.asset)
+          .map((p) => p.asset!.symbol.toUpperCase()),
+      ),
+    ]
+      .sort()
+      .join(',');
+  }, [portfolio]);
+
+  useEffect(() => {
+    if (!playerSymbolsKey) return;
+    let cancelled = false;
+    fetchQuotesBatch(playerSymbolsKey.split(',')).then((quotes) => {
+      if (cancelled || quotes.size === 0) return;
+      setPortfolio((prev) => {
+        if (!prev) return prev;
+        let changed = false;
+        const nextPlayers = prev.players.map((p) => {
+          if (!p.asset) return p;
+          const live = applyLiveQuote(p.asset, quotes.get(p.asset.symbol.toUpperCase()));
+          if (live === p.asset || Math.abs(live.currentPrice - p.asset.currentPrice) < 0.005) {
+            return p;
+          }
+          changed = true;
+          return { ...p, asset: live };
+        });
+        return changed ? { ...prev, players: nextPlayers } : prev;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [playerSymbolsKey]);
 
   useEffect(() => {
     const fetchOwner = async () => {

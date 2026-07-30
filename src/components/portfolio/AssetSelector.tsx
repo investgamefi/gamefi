@@ -7,6 +7,7 @@ import { MOCK_ASSETS, SECTORS, addExternalAsset } from '@/data/assets';
 import { formatCurrency, formatPercent } from '@/lib/utils';
 import { Input, Modal } from '@/components/ui';
 import { useAssetSearch, assetSearchRank } from '@/hooks/useAssetSearch';
+import { useLivePrices } from '@/hooks/useLivePrices';
 import { Icon } from '@/components/stadium/Icon';
 
 /* Map portfolio risk tier → stadium DEF/MID/ATK colour vocabulary. */
@@ -52,10 +53,14 @@ export const AssetSelector: React.FC<AssetSelectorProps> = ({
   const [showSuggestedOnly, setShowSuggestedOnly] = useState(false);
   const { results: searchResults, isLoading, error, searchTerm, setSearchTerm } = useAssetSearch('');
 
+  /* Live prices for the default (no-search) catalog list. Search
+     results hydrate inside useAssetSearch already. */
+  const { assets: liveCatalog } = useLivePrices(MOCK_ASSETS);
+
   const positionRiskLevel = position ? POSITION_RISK_MAP[position.row] : null;
 
   const filteredAssets = useMemo(() => {
-    let assets = searchTerm.trim() ? searchResults : MOCK_ASSETS;
+    let assets = searchTerm.trim() ? searchResults : liveCatalog;
 
     if (selectedSector !== 'All') assets = assets.filter((a) => a.sector === selectedSector);
     if (selectedType !== 'All') assets = assets.filter((a) => a.type === selectedType);
@@ -82,7 +87,7 @@ export const AssetSelector: React.FC<AssetSelectorProps> = ({
     }
 
     return assets;
-  }, [searchTerm, searchResults, selectedSector, selectedType, showSuggestedOnly, positionRiskLevel]);
+  }, [searchTerm, searchResults, liveCatalog, selectedSector, selectedType, showSuggestedOnly, positionRiskLevel]);
 
   const handleSelect = (asset: Asset) => {
     const isExternal = !MOCK_ASSETS.some((a) => a.id === asset.id);

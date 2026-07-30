@@ -7,6 +7,7 @@ import { AppLayout, Input, Modal } from '@/components';
 import { MOCK_ASSETS, SECTORS, getAllAssets, addExternalAsset } from '@/data/assets';
 import { formatCurrency, formatPercent, formatNumber } from '@/lib/utils';
 import { useAssetSearch, assetSearchRank } from '@/hooks/useAssetSearch';
+import { useLivePrices } from '@/hooks/useLivePrices';
 import { useStore } from '@/store/useStore';
 import { Asset, SQUAD_STARTER_COUNT, SQUAD_BENCH_COUNT } from '@/types';
 import { Icon } from '@/components/stadium/Icon';
@@ -54,6 +55,13 @@ export default function MarketPage() {
 
   const { results: searchResults, isLoading: isSearching, error: searchError, searchTerm, setSearchTerm } = useAssetSearch('');
 
+  /* Live-price overlay for the whole catalog. Renders instantly with
+     the authored sample prices, then one batched spark call refreshes
+     every ticker (5-min cache). Search results hydrate separately
+     inside useAssetSearch. */
+  const catalogAssets = useMemo(() => getAllAssets(), []);
+  const { assets: liveCatalog } = useLivePrices(catalogAssets);
+
   /* Open the squad-picker for an asset. Short-circuits straight to the
      /sign page if the user has exactly one squad — no point making them
      pick. Routes to /portfolio (create flow) if they have none. */
@@ -70,7 +78,7 @@ export default function MarketPage() {
   };
 
   const filteredAssets = useMemo(() => {
-    let assets: Asset[] = searchTerm.trim() ? searchResults : getAllAssets();
+    let assets: Asset[] = searchTerm.trim() ? searchResults : liveCatalog;
 
     if (selectedSector !== 'All') {
       assets = assets.filter((a) => a.sector === selectedSector);
@@ -96,16 +104,16 @@ export default function MarketPage() {
     });
 
     return assets;
-  }, [searchTerm, searchResults, selectedSector, sortBy, sortOrder]);
+  }, [searchTerm, searchResults, selectedSector, sortBy, sortOrder, liveCatalog]);
 
   const marketStats = useMemo(() => {
-    const allAssets = getAllAssets();
+    const allAssets = liveCatalog;
     const gainers = allAssets.filter((a) => a.dayChangePercent > 0).length;
     const losers = allAssets.filter((a) => a.dayChangePercent < 0).length;
     const avgChange = allAssets.reduce((sum, a) => sum + a.dayChangePercent, 0) / allAssets.length;
     const totalMarketCap = allAssets.reduce((sum, a) => sum + a.marketCap, 0);
     return { gainers, losers, avgChange, totalMarketCap, totalAssets: allAssets.length };
-  }, []);
+  }, [liveCatalog]);
 
   const handleSort = (field: SortBy) => {
     if (sortBy === field) {
@@ -123,11 +131,10 @@ export default function MarketPage() {
 
   // Top 4 movers for the "Hot Transfers" featured row
   const hotMovers = useMemo(() => {
-    const allAssets = getAllAssets();
-    return [...allAssets]
+    return [...liveCatalog]
       .sort((a, b) => Math.abs(b.dayChangePercent) - Math.abs(a.dayChangePercent))
       .slice(0, 4);
-  }, []);
+  }, [liveCatalog]);
 
   return (
     <AppLayout flush>

@@ -211,6 +211,109 @@ export async function searchAssetsFromYahoo(
   return { success: true, assets, error: assets.length === 0 ? error : undefined };
 }
 
+/* ============================================================
+   Batch live quotes — one /api/yahoo-finance?symbols=A,B,C call
+   refreshes many tickers at once (the route fans out to Yahoo's
+   multi-symbol spark endpoint). Used to overlay live prices onto
+   the curated catalog and portfolio player snapshots.
+   ============================================================ */
+
+export interface LiveQuote {
+  symbol: string;
+  currentPrice: number;
+  previousClose: number;
+  dayChange: number;
+  dayChangePercent: number;
+  weekHigh52: number;
+  weekLow52: number;
+}
+
+const quoteCache: Map<string, { quote: LiveQuote; timestamp: number }> = new Map();
+const pendingBatch: Map<string, Promise<Map<string, LiveQuote>>> = new Map();
+
+const BATCH_REQUEST_LIMIT = 100;
+
+/**
+ * Fetch live quotes for many symbols in as few HTTP calls as possible.
+ * Per-symbol 5-min cache; concurrent calls for the same symbol set share
+ * one request. Symbols Yahoo can't resolve are absent from the map —
+ * callers keep their existing numbers for those.
+ */
+export async function fetchQuotesBatch(symbols: string[]): Promise<Map<string, LiveQuote>> {
+  const wanted = [...new Set(symbols.map((s) => s.trim().toUpperCase()).filter(Boolean))];
+  const result = new Map<string, LiveQuote>();
+  const now = Date.now();
+
+  const misses: string[] = [];
+  for (const sym of wanted) {
+    const cached = quoteCache.get(sym);
+    if (cached && now - cached.timestamp < CACHE_DURATION) {
+      result.set(sym, cached.quote);
+    } else {
+      misses.push(sym);
+    }
+  }
+  if (misses.length === 0) return result;
+
+  const batchKey = misses.join(',');
+  let request = pendingBatch.get(batchKey);
+  if (!request) {
+    request = (async () => {
+      const fetched = new Map<string, LiveQuote>();
+      const chunks: string[][] = [];
+      for (let i = 0; i < misses.length; i += BATCH_REQUEST_LIMIT) {
+        chunks.push(misses.slice(i, i + BATCH_REQUEST_LIMIT));
+      }
+      await Promise.all(
+        chunks.map(async (chunk) => {
+          try {
+            const response = await fetch(
+              `/api/yahoo-finance?symbols=${encodeURIComponent(chunk.join(','))}`,
+            );
+            const data: { success: boolean; quotes?: Record<string, LiveQuote> } =
+              await response.json();
+            if (data.success && data.quotes) {
+              const stamp = Date.now();
+              for (const [sym, quote] of Object.entries(data.quotes)) {
+                quoteCache.set(sym, { quote, timestamp: stamp });
+                fetched.set(sym, quote);
+              }
+            }
+          } catch (error) {
+            console.error('Batch quote fetch failed:', error);
+          }
+        }),
+      );
+      return fetched;
+    })().finally(() => {
+      pendingBatch.delete(batchKey);
+    });
+    pendingBatch.set(batchKey, request);
+  }
+
+  const fetched = await request;
+  for (const [sym, quote] of fetched) result.set(sym, quote);
+  return result;
+}
+
+/**
+ * Overlay a live quote's market-driven numbers onto an asset while
+ * keeping its curated metadata (sector, beta, PE, name, id). Returns
+ * the asset unchanged when there's no usable quote.
+ */
+export function applyLiveQuote(asset: Asset, quote: LiveQuote | undefined): Asset {
+  if (!quote || !(quote.currentPrice > 0)) return asset;
+  return {
+    ...asset,
+    currentPrice: quote.currentPrice,
+    previousClose: quote.previousClose > 0 ? quote.previousClose : asset.previousClose,
+    dayChange: quote.dayChange,
+    dayChangePercent: quote.dayChangePercent,
+    weekHigh52: quote.weekHigh52 > 0 ? quote.weekHigh52 : asset.weekHigh52,
+    weekLow52: quote.weekLow52 > 0 ? quote.weekLow52 : asset.weekLow52,
+  };
+}
+
 // Clear all cached data
 export function clearYahooCache(): void {
   memoryCache.clear();
