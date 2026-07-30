@@ -22,6 +22,16 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
     }
   }, [currentUser, hasChecked]);
 
+  // Lock background scroll while the tour is up (same pattern as Modal)
+  // so touch-scrolling the card doesn't move the page behind it.
+  useEffect(() => {
+    if (!isVisible) return;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isVisible]);
+
   const checkOnboardingStatus = async () => {
     if (!currentUser) return;
     setHasChecked(true);
@@ -119,9 +129,13 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
             left: '50%',
             top: '50%',
             transform: 'translate(-50%, -50%)',
-            width: '100%',
-            maxWidth: 440,
-            padding: 24,
+            /* Phone-safe sizing: 16px gutters on narrow viewports,
+               capped card width on desktop, scroll if content is
+               taller than a short landscape viewport. */
+            width: 'min(440px, calc(100vw - 32px))',
+            maxHeight: 'calc(100vh - 32px)',
+            overflowY: 'auto',
+            padding: 'clamp(18px, 5vw, 24px)',
             background: 'var(--surface)',
             border: '1px solid var(--line)',
             borderRadius: 12,
@@ -195,12 +209,13 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
             <button
               type="button"
               onClick={skipOnboarding}
-              className="stadium-btn stadium-btn-ghost"
+              className="stadium-btn stadium-btn-ghost tap44"
               style={{
                 flex: 1,
                 justifyContent: 'center',
                 padding: '10px 14px',
                 fontSize: 12,
+                whiteSpace: 'nowrap',
               }}
             >
               Skip tour
@@ -208,12 +223,13 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
             <button
               type="button"
               onClick={completeStep}
-              className="stadium-btn stadium-btn-primary"
+              className="stadium-btn stadium-btn-primary tap44"
               style={{
                 flex: 1.4,
                 justifyContent: 'center',
                 padding: '10px 14px',
                 fontSize: 12,
+                whiteSpace: 'nowrap',
               }}
             >
               {currentStep < ONBOARDING_STEPS.length - 1 ? (
