@@ -25,6 +25,17 @@ interface YahooChartResponse {
   };
 }
 
+interface YahooSearchQuote {
+  symbol?: string;
+  shortname?: string;
+  longname?: string;
+  quoteType?: string;
+}
+
+interface YahooSearchApiResponse {
+  quotes?: YahooSearchQuote[];
+}
+
 function mapInstrumentTypeToAssetType(instrumentType?: string): AssetType {
   switch (instrumentType?.toUpperCase()) {
     case 'EQUITY':
@@ -66,6 +77,57 @@ function mapChartToAsset(meta: YahooChartMeta): Asset {
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const symbol = searchParams.get('symbol');
+  const query = searchParams.get('q');
+
+  /* Name/ticker search mode: ?q=microsoft → candidate tickers.
+     Yahoo's autocomplete endpoint matches by company name natively,
+     so "microsoft" resolves to MSFT. The frontend then hydrates each
+     candidate through the existing ?symbol= quote path. */
+  if (query !== null) {
+    const trimmed = query.trim();
+    if (!trimmed || trimmed.length > 50) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid search query' },
+        { status: 400 }
+      );
+    }
+
+    try {
+      const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(trimmed)}&quotesCount=10&newsCount=0&listsCount=0`;
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+        cache: 'no-store',
+      });
+
+      if (!response.ok) {
+        console.error(`Yahoo Finance search API returned ${response.status}`);
+        return NextResponse.json(
+          { success: false, error: 'Search failed' },
+          { status: 502 }
+        );
+      }
+
+      const data: YahooSearchApiResponse = await response.json();
+      const allowedTypes = new Set(['EQUITY', 'ETF', 'MUTUALFUND']);
+      const candidates = (data.quotes ?? [])
+        .filter((q) => q.symbol && allowedTypes.has((q.quoteType ?? '').toUpperCase()))
+        .slice(0, 8)
+        .map((q) => ({
+          symbol: q.symbol!.toUpperCase(),
+          name: q.longname || q.shortname || q.symbol!,
+        }));
+
+      return NextResponse.json({ success: true, candidates });
+    } catch (error) {
+      console.error('Yahoo Finance search API error:', error);
+      return NextResponse.json(
+        { success: false, error: 'Failed to search Yahoo Finance' },
+        { status: 500 }
+      );
+    }
+  }
 
   if (!symbol) {
     return NextResponse.json(

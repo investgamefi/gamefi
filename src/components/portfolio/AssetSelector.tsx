@@ -6,7 +6,7 @@ import { Asset, Position, POSITION_RISK_MAP, RiskLevel, getAssetRiskLevel } from
 import { MOCK_ASSETS, SECTORS, addExternalAsset } from '@/data/assets';
 import { formatCurrency, formatPercent } from '@/lib/utils';
 import { Input, Modal } from '@/components/ui';
-import { useAssetSearch } from '@/hooks/useAssetSearch';
+import { useAssetSearch, assetSearchRank } from '@/hooks/useAssetSearch';
 import { Icon } from '@/components/stadium/Icon';
 
 /* Map portfolio risk tier → stadium DEF/MID/ATK colour vocabulary. */
@@ -65,7 +65,14 @@ export const AssetSelector: React.FC<AssetSelectorProps> = ({
     }
 
     if (positionRiskLevel) {
+      const query = searchTerm.trim();
       assets = [...assets].sort((a, b) => {
+        /* While searching, relevance wins first (exact ticker → ticker
+           prefix → name match) so "MS" surfaces MS before MSFT. */
+        if (query) {
+          const rankDiff = assetSearchRank(a, query) - assetSearchRank(b, query);
+          if (rankDiff !== 0) return rankDiff;
+        }
         const aMatches = getAssetRiskLevel(a.beta) === positionRiskLevel;
         const bMatches = getAssetRiskLevel(b.beta) === positionRiskLevel;
         if (aMatches && !bMatches) return -1;
@@ -236,7 +243,7 @@ export const AssetSelector: React.FC<AssetSelectorProps> = ({
         >
           <div style={{ flex: 1, minWidth: 220 }}>
             <Input
-              placeholder="Scout a ticker (e.g. NVDA, COIN)…"
+              placeholder="Scout a ticker or company (e.g. NVDA, Microsoft)…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               leftIcon={
@@ -306,7 +313,7 @@ export const AssetSelector: React.FC<AssetSelectorProps> = ({
             style={{ padding: '10px 12px', borderStyle: 'dashed' }}
           >
             <p style={{ margin: 0, fontSize: 12, color: 'var(--text-dim)' }}>
-              No local matches. Try a valid stock ticker (PLTR, TSLA) to search Yahoo Finance.
+              No local matches. Try a ticker (PLTR) or a company name (Palantir) to search Yahoo Finance.
             </p>
           </div>
         )}

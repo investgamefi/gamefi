@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { AppLayout, Input, Modal } from '@/components';
 import { MOCK_ASSETS, SECTORS, getAllAssets, addExternalAsset } from '@/data/assets';
 import { formatCurrency, formatPercent, formatNumber } from '@/lib/utils';
-import { useAssetSearch } from '@/hooks/useAssetSearch';
+import { useAssetSearch, assetSearchRank } from '@/hooks/useAssetSearch';
 import { useStore } from '@/store/useStore';
 import { Asset, SQUAD_STARTER_COUNT, SQUAD_BENCH_COUNT } from '@/types';
 import { Icon } from '@/components/stadium/Icon';
@@ -76,7 +76,15 @@ export default function MarketPage() {
       assets = assets.filter((a) => a.sector === selectedSector);
     }
 
+    const query = searchTerm.trim();
     assets = [...assets].sort((a, b) => {
+      /* While searching, relevance wins first: exact ticker → ticker
+         prefix → name match ("MS" surfaces MS before MSFT before
+         Morgan Stanley-named funds). The column sort breaks ties. */
+      if (query) {
+        const rankDiff = assetSearchRank(a, query) - assetSearchRank(b, query);
+        if (rankDiff !== 0) return rankDiff;
+      }
       let cmp = 0;
       switch (sortBy) {
         case 'name': cmp = a.name.localeCompare(b.name); break;
@@ -171,7 +179,7 @@ export default function MarketPage() {
         <div className="flex flex-wrap" style={{ gap: 10, alignItems: 'center' }}>
           <div style={{ flex: 1, minWidth: 240 }}>
             <Input
-              placeholder="Scout a ticker (e.g. NVDA, COIN, PLTR)…"
+              placeholder="Scout a ticker or company (e.g. NVDA, Microsoft)…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               leftIcon={
@@ -290,7 +298,7 @@ export default function MarketPage() {
         {searchTerm.trim() && filteredAssets.length === 0 && !isSearching && !searchError && (
           <div className="stadium-card" style={{ padding: 12 }}>
             <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: 0 }}>
-              No matches found. Try a valid stock ticker (e.g., PLTR, TSLA) to search Yahoo Finance.
+              No matches found. Try a ticker (e.g., PLTR) or a company name (e.g., Palantir) to search Yahoo Finance.
             </p>
           </div>
         )}

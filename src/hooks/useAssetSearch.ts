@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Asset } from '@/types';
 import { getAllAssets } from '@/data/assets';
-import { fetchAssetFromYahoo } from '@/lib/yahooFinance';
+import { searchAssetsFromYahoo } from '@/lib/yahooFinance';
 
 interface UseAssetSearchResult {
   results: Asset[];
@@ -15,12 +15,34 @@ interface UseAssetSearchResult {
 
 const DEBOUNCE_DELAY = 300; // ms
 
-// Search assets by symbol only (prefix match), sorted alphabetically
-function searchBySymbol(query: string): Asset[] {
-  const upperQuery = query.toUpperCase();
+/* Relevance rank for a search hit — lower is better.
+   0 = exact symbol match ("MS" → MS the ticker)
+   1 = symbol prefix match ("MS" → MSFT)
+   2 = symbol substring match
+   3 = company name match ("microsoft" → MSFT)
+   4 = no match (Yahoo fuzzy hits whose text doesn't contain the query) */
+export function assetSearchRank(asset: Pick<Asset, 'symbol' | 'name'>, query: string): number {
+  const q = query.trim().toUpperCase();
+  if (!q) return 4;
+  const symbol = asset.symbol.toUpperCase();
+  if (symbol === q) return 0;
+  if (symbol.startsWith(q)) return 1;
+  if (symbol.includes(q)) return 2;
+  if (asset.name.toUpperCase().includes(q)) return 3;
+  return 4;
+}
+
+function byRelevance(query: string) {
+  return (a: Asset, b: Asset) =>
+    assetSearchRank(a, query) - assetSearchRank(b, query) || a.symbol.localeCompare(b.symbol);
+}
+
+// Case-insensitive substring search over BOTH symbol and company name
+function searchLocalAssets(query: string): Asset[] {
+  const q = query.toUpperCase();
   return getAllAssets()
-    .filter(a => a.symbol.toUpperCase().startsWith(upperQuery))
-    .sort((a, b) => a.symbol.localeCompare(b.symbol));
+    .filter(a => a.symbol.toUpperCase().includes(q) || a.name.toUpperCase().includes(q))
+    .sort(byRelevance(query));
 }
 
 export function useAssetSearch(initialTerm: string = ''): UseAssetSearchResult {
@@ -47,51 +69,50 @@ export function useAssetSearch(initialTerm: string = ''): UseAssetSearchResult {
       return;
     }
 
-    setIsLoading(true);
+    // Local matches (symbol OR company name) render immediately.
+    const localResults = searchLocalAssets(normalizedTerm);
+    setResults(localResults);
+
+    // Exact local ticker hit — no need to go remote.
+    const hasExactLocalMatch = localResults.some(
+      a => a.symbol.toUpperCase() === normalizedTerm.toUpperCase()
+    );
+    if (hasExactLocalMatch) {
+      setIsLoading(false);
+      return;
+    }
+
+    // Only block the list with a spinner when there is nothing local to
+    // show; otherwise Yahoo results merge in silently when they arrive.
+    setIsLoading(localResults.length === 0);
 
     try {
-      // Search local assets by symbol prefix
-      const localResults = searchBySymbol(normalizedTerm);
+      // Yahoo search matches by ticker AND company name ("microsoft" → MSFT)
+      const yahooResponse = await searchAssetsFromYahoo(normalizedTerm);
 
-      // Check if search term has changed while we were processing
+      // Check if search term has changed while we were fetching
       if (latestSearchRef.current !== normalizedTerm) return;
 
-      // Check if the search term looks like a stock symbol (letters/numbers, 1-5 chars)
-      const isLikelySymbol = /^[A-Za-z0-9]{1,5}$/.test(normalizedTerm);
+      const localSymbols = new Set(localResults.map(a => a.symbol.toUpperCase()));
+      const merged = [
+        ...localResults,
+        ...yahooResponse.assets.filter(a => !localSymbols.has(a.symbol.toUpperCase())),
+      ].sort(byRelevance(normalizedTerm));
 
-      // Check if we have an exact local symbol match
-      const hasExactLocalMatch = localResults.some(
-        a => a.symbol.toUpperCase() === normalizedTerm.toUpperCase()
-      );
+      setResults(merged);
 
-      // If it looks like a symbol and no exact local match, try Yahoo Finance
-      if (isLikelySymbol && !hasExactLocalMatch) {
-        const yahooResponse = await fetchAssetFromYahoo(normalizedTerm);
-
-        // Check if search term has changed while we were fetching
-        if (latestSearchRef.current !== normalizedTerm) return;
-
-        if (yahooResponse.success && yahooResponse.asset) {
-          // Add Yahoo result and re-sort alphabetically
-          const combined = [yahooResponse.asset, ...localResults.filter(
-            a => a.symbol.toUpperCase() !== yahooResponse.asset!.symbol.toUpperCase()
-          )];
-          combined.sort((a, b) => a.symbol.localeCompare(b.symbol));
-          setResults(combined);
-        } else {
-          setResults(localResults);
-          if (localResults.length === 0 && yahooResponse.error && yahooResponse.error !== 'Symbol not found') {
-            setError(yahooResponse.error);
-          }
-        }
-      } else {
-        // Has exact local match or not a symbol-like query
-        setResults(localResults);
+      if (
+        merged.length === 0 &&
+        yahooResponse.error &&
+        yahooResponse.error !== 'Symbol not found'
+      ) {
+        setError(yahooResponse.error);
       }
-    } catch (err) {
+    } catch {
       if (latestSearchRef.current === normalizedTerm) {
-        setError('Failed to search assets');
-        setResults([]);
+        if (localResults.length === 0) {
+          setError('Failed to search assets');
+        }
       }
     } finally {
       if (latestSearchRef.current === normalizedTerm) {

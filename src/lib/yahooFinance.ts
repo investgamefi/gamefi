@@ -132,6 +132,85 @@ export async function fetchAssetFromYahoo(symbol: string): Promise<YahooFinanceR
   return request;
 }
 
+interface SearchCandidate {
+  symbol: string;
+  name: string;
+}
+
+interface YahooSearchAssetsResult {
+  success: boolean;
+  assets: Asset[];
+  error?: string;
+}
+
+// Query → candidate list cache (same 5-minute TTL as the quote cache)
+const searchCandidateCache: Map<string, { candidates: SearchCandidate[]; timestamp: number }> =
+  new Map();
+
+async function fetchSearchCandidates(
+  query: string
+): Promise<{ candidates: SearchCandidate[]; error?: string }> {
+  const key = query.toUpperCase();
+  const cached = searchCandidateCache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    return { candidates: cached.candidates };
+  }
+
+  try {
+    const response = await fetch(`/api/yahoo-finance?q=${encodeURIComponent(query)}`);
+    const data: { success: boolean; candidates?: SearchCandidate[]; error?: string } =
+      await response.json();
+
+    if (!data.success) {
+      return { candidates: [], error: data.error || 'Search failed' };
+    }
+
+    const candidates = data.candidates ?? [];
+    searchCandidateCache.set(key, { candidates, timestamp: Date.now() });
+    return { candidates };
+  } catch {
+    return { candidates: [], error: 'Network error' };
+  }
+}
+
+/**
+ * Search Yahoo Finance by ticker OR company name ("microsoft" → MSFT).
+ * Resolves candidate tickers from Yahoo's autocomplete endpoint, then
+ * hydrates each one through the cached quote fetch so results carry
+ * live prices in the app's Asset shape.
+ */
+export async function searchAssetsFromYahoo(
+  query: string,
+  limit: number = 6
+): Promise<YahooSearchAssetsResult> {
+  const { candidates, error } = await fetchSearchCandidates(query);
+
+  // Fallback: preserve the old direct-ticker validation path for
+  // symbol-like terms the search endpoint missed.
+  if (candidates.length === 0 && /^[A-Za-z0-9.\-]{1,10}$/.test(query)) {
+    const direct = await fetchAssetFromYahoo(query);
+    if (direct.success && direct.asset) {
+      return { success: true, assets: [direct.asset] };
+    }
+    return { success: false, assets: [], error: error || direct.error };
+  }
+
+  const resolved = await Promise.all(
+    candidates.slice(0, limit).map(async (candidate) => {
+      const res = await fetchAssetFromYahoo(candidate.symbol);
+      if (!res.success || !res.asset) return null;
+      // Chart API sometimes lacks a display name — use the search result's.
+      if ((!res.asset.name || res.asset.name === res.asset.symbol) && candidate.name) {
+        return { ...res.asset, name: candidate.name };
+      }
+      return res.asset;
+    })
+  );
+
+  const assets = resolved.filter((a): a is Asset => a !== null);
+  return { success: true, assets, error: assets.length === 0 ? error : undefined };
+}
+
 // Clear all cached data
 export function clearYahooCache(): void {
   memoryCache.clear();
