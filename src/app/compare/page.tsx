@@ -34,6 +34,7 @@ import {
 import { calculatePortfolioHistoricalData, calculateMetricsFromHistoricalData } from '@/lib/portfolioHistoricalData';
 import { PortfolioHistoricalPoint } from '@/types';
 import { fetchMultipleFundamentals, AssetFundamentals } from '@/lib/yahooFundamentals';
+import { fetchQuotesBatch, LiveQuote } from '@/lib/yahooFinance';
 import { Icon } from '@/components/stadium/Icon';
 
 const MAX_PORTFOLIOS = 4;
@@ -220,6 +221,17 @@ export default function ComparePage() {
     { revalidateOnFocus: false, keepPreviousData: true },
   );
 
+  /* Live batch quotes for the same symbol set — powers the REAL "Day
+     Return" row (allocation-weighted intraday change). The mock walk
+     used to supply this number and it had nothing to do with the
+     actual holdings. Shares fundamentalsKey's symbol list, 5-min
+     client cache inside fetchQuotesBatch. */
+  const { data: liveQuotesMap = new Map<string, LiveQuote>() } = useSWR<Map<string, LiveQuote>>(
+    fundamentalsKey ? ['compare:live-quotes', fundamentalsKey[1]] as const : null,
+    async ([, syms]) => fetchQuotesBatch(syms as string[]),
+    { revalidateOnFocus: false, keepPreviousData: true },
+  );
+
   // Get selected portfolios with their performances
   const selectedPortfolios = useMemo(() => {
     return selectedIds
@@ -316,11 +328,46 @@ export default function ComparePage() {
     // Use the dedicated SPY benchmark return for alpha calculation
     const benchmarkReturn = spyBenchmarkReturn;
 
+    /* Allocation-weighted intraday change from live quotes — the real
+       "Day Return". Renormalizes over the weights we have quotes for,
+       so one unresolvable ticker doesn't drag the number toward 0.
+       Returns null when no quotes resolved (falls back to series). */
+    const liveDayReturnFor = (portfolio: Portfolio): number | null => {
+      const players = portfolio.players.filter((p) => p.asset);
+      const totalAlloc = players.reduce((s, p) => s + p.allocation, 0);
+      if (totalAlloc === 0) return null;
+      let weighted = 0;
+      let coveredWeight = 0;
+      players.forEach((p) => {
+        const quote = liveQuotesMap.get(p.asset!.symbol.toUpperCase());
+        if (quote) {
+          const w = p.allocation / totalAlloc;
+          weighted += w * quote.dayChangePercent;
+          coveredWeight += w;
+        }
+      });
+      return coveredWeight > 0 ? weighted / coveredWeight : null;
+    };
+
     return selectedPortfolios.map((item) => {
       const historicalData = portfolioHistoricalData.get(item.portfolio.id);
 
       // Calculate weighted fundamental metrics
       const fundamentals = calculateWeightedFundamentals(item.portfolio);
+
+      /* Return over the last N TRADING days of the fetched series.
+         Clamps to the series start when the selected window is shorter
+         than the offset (1W timeframe → "month return" degrades to the
+         full-window return instead of inventing a number). */
+      const seriesReturnFrom = (offset: number): number | null => {
+        if (!historicalData || historicalData.length < 2) return null;
+        const last = historicalData[historicalData.length - 1].value;
+        const idx = Math.max(0, historicalData.length - 1 - offset);
+        const base = historicalData[idx].value;
+        return base > 0 ? ((last - base) / base) * 100 : null;
+      };
+
+      const liveDayReturn = liveDayReturnFor(item.portfolio);
 
       if (historicalData && historicalData.length > 1) {
         // Calculate real metrics from Yahoo Finance data
@@ -347,6 +394,9 @@ export default function ComparePage() {
           ? realMetrics.totalReturnPercent - (item.performance.beta * benchmarkReturn)
           : null;
 
+        const dayReturnPercent =
+          liveDayReturn ?? seriesReturnFrom(1) ?? item.performance.dayReturnPercent;
+
         return {
           ...item,
           performance: {
@@ -354,6 +404,12 @@ export default function ComparePage() {
             totalValue: realValue,
             totalReturn: realTotalReturn,
             totalReturnPercent: realMetrics.totalReturnPercent,
+            /* Day from live quotes, week/month from the real series —
+               these three used to leak through from the mock walk. */
+            dayReturnPercent,
+            dayReturn: realValue * (dayReturnPercent / 100),
+            weekReturnPercent: seriesReturnFrom(5) ?? item.performance.weekReturnPercent,
+            monthReturnPercent: seriesReturnFrom(21) ?? item.performance.monthReturnPercent,
             volatility: realMetrics.volatility,
             sharpeRatio: realMetrics.sharpeRatio,
             maxDrawdown: realMetrics.maxDrawdown,
@@ -364,16 +420,17 @@ export default function ComparePage() {
         };
       }
 
-      // Even without historical data, still add fundamentals
+      // Even without historical data, still overlay live day return + fundamentals
       return {
         ...item,
         performance: {
           ...item.performance,
+          ...(liveDayReturn !== null ? { dayReturnPercent: liveDayReturn } : {}),
           ...fundamentals,
         },
       };
     });
-  }, [selectedPortfolios, portfolioHistoricalData, spyBenchmarkReturn, calculateWeightedFundamentals]);
+  }, [selectedPortfolios, portfolioHistoricalData, spyBenchmarkReturn, calculateWeightedFundamentals, liveQuotesMap]);
 
   const handleSelectPortfolio = (index: number, portfolioId: string) => {
     const newIds = [...selectedIds];
