@@ -23,6 +23,7 @@ import {
   Position,
   PortfolioPlayer,
   Portfolio,
+  PortfolioHistoricalPoint,
   AllocationStrategy,
   SeasonState,
   FORMATIONS,
@@ -35,7 +36,6 @@ import {
   formatCurrency,
   formatPercent,
   formatDate,
-  calculatePortfolioPerformance,
   calculatePortfolioPerformanceForDateRange,
   exportPortfolioToCSV,
   getShareUrl,
@@ -46,6 +46,12 @@ import {
   formatRatio,
 } from '@/lib/utils';
 import { usePortfolioFundamentals } from '@/hooks/usePortfolioFundamentals';
+import { usePortfolioRealPerformance } from '@/hooks/usePortfolioRealPerformance';
+import {
+  calculatePortfolioHistoricalData,
+  calculateMetricsFromHistoricalData,
+} from '@/lib/portfolioHistoricalData';
+import { format as formatDateFns } from 'date-fns';
 import { fetchQuotesBatch, applyLiveQuote } from '@/lib/yahooFinance';
 import { Icon } from '@/components/stadium/Icon';
 
@@ -303,13 +309,114 @@ export default function PortfolioDetailPage() {
   const isOwner = currentUser?.id === portfolio?.userId;
   const hasLiked = currentUser && portfolio ? portfolio.likes.includes(currentUser.id) : false;
 
+  /* Real performance from Yahoo history: $10k invested at squad
+     creation, grown by the actual weighted returns of the holdings.
+     Falls back to the seeded game walk inside the hook while loading
+     or when Yahoo has no data for the squad's tickers.
+     The fallback portfolio needs a valid createdAt — EMPTY_PORTFOLIO's
+     empty string would make the mock walk index into an empty array. */
+  const emptyPerfPortfolio = useMemo(
+    () => ({ ...EMPTY_PORTFOLIO, createdAt: new Date().toISOString() }),
+    [],
+  );
+  const { performance: realPerformance, isRealData } = usePortfolioRealPerformance(
+    portfolio || emptyPerfPortfolio,
+    { useCreationDate: true, enabled: !!portfolio },
+  );
+
+  /* Real metrics for a custom date range (the performance tab's date
+     picker). Async: fetches the squad's actual history over the range;
+     while in flight the memo below falls back to the mock range calc
+     so the tab never blanks. */
+  const [rangeReal, setRangeReal] = useState<{
+    key: string;
+    hist: { date: string; value: number; return: number }[];
+    metrics: ReturnType<typeof calculateMetricsFromHistoricalData>;
+  } | null>(null);
+
+  const rangeKey =
+    portfolio && dateRangeStart && dateRangeEnd
+      ? `${portfolio.id}:${formatDateFns(dateRangeStart, 'yyyy-MM-dd')}:${formatDateFns(dateRangeEnd, 'yyyy-MM-dd')}`
+      : null;
+
+  useEffect(() => {
+    if (!portfolio || !dateRangeStart || !dateRangeEnd || !rangeKey) {
+      setRangeReal(null);
+      return;
+    }
+    let cancelled = false;
+    calculatePortfolioHistoricalData(portfolio, '1M', {
+      startDate: formatDateFns(dateRangeStart, 'yyyy-MM-dd'),
+      endDate: formatDateFns(dateRangeEnd, 'yyyy-MM-dd'),
+    })
+      .then((hist) => {
+        if (cancelled || hist.length < 2) return;
+        setRangeReal({ key: rangeKey, hist, metrics: calculateMetricsFromHistoricalData(hist) });
+      })
+      .catch(() => {
+        /* mock range fallback stays in place */
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rangeKey]);
+
+  /* Live TODAY: allocation-weighted intraday change across the
+     starters. Player assets carry live dayChangePercent thanks to the
+     batched quote overlay above, so this is real whenever quotes have
+     landed (and last-save-fresh otherwise). */
+  const liveDayReturnPercent = useMemo(() => {
+    if (!portfolio) return null;
+    const players = portfolio.players.filter((p) => p.asset && !p.isBench);
+    const total = players.reduce((s, p) => s + (p.allocation || 0), 0);
+    if (total <= 0) return null;
+    return players.reduce(
+      (s, p) => s + ((p.allocation || 0) / total) * (p.asset!.dayChangePercent || 0),
+      0,
+    );
+  }, [portfolio]);
+
   const performance = useMemo(() => {
     if (!portfolio) return null;
-    if (dateRangeStart && dateRangeEnd) {
-      return calculatePortfolioPerformanceForDateRange(portfolio, dateRangeStart, dateRangeEnd);
+    const INITIAL = 10000;
+    /* Normalized-100 history → dollars for the equity chart. */
+    const toDollars = (hist: PortfolioHistoricalPoint[]): PortfolioHistoricalPoint[] =>
+      hist.map((p) => ({ ...p, value: Math.round(p.value * INITIAL) / 100 }));
+
+    let perf = realPerformance;
+    if (isRealData && perf.historicalData && perf.historicalData.length > 0) {
+      perf = { ...perf, historicalData: toDollars(perf.historicalData) };
     }
-    return calculatePortfolioPerformance(portfolio);
-  }, [portfolio, dateRangeStart, dateRangeEnd]);
+
+    if (dateRangeStart && dateRangeEnd) {
+      if (rangeReal && rangeReal.key === rangeKey) {
+        const dollars = toDollars(rangeReal.hist);
+        const rangeValue = dollars[dollars.length - 1].value;
+        perf = {
+          ...perf,
+          totalValue: rangeValue,
+          totalReturn: rangeValue - INITIAL,
+          totalReturnPercent: rangeReal.metrics.totalReturnPercent,
+          volatility: rangeReal.metrics.volatility,
+          sharpeRatio: rangeReal.metrics.sharpeRatio,
+          maxDrawdown: rangeReal.metrics.maxDrawdown,
+          historicalData: dollars,
+        };
+      } else {
+        perf = calculatePortfolioPerformanceForDateRange(portfolio, dateRangeStart, dateRangeEnd);
+      }
+    }
+
+    if (liveDayReturnPercent !== null) {
+      perf = {
+        ...perf,
+        dayReturnPercent: liveDayReturnPercent,
+        dayReturn: perf.totalValue * (liveDayReturnPercent / 100),
+      };
+    }
+    return perf;
+  }, [portfolio, realPerformance, isRealData, dateRangeStart, dateRangeEnd, rangeReal, rangeKey, liveDayReturnPercent]);
 
   const { aggregateMetrics, alpha, isLoading: fundamentalsLoading } = usePortfolioFundamentals(
     portfolio || EMPTY_PORTFOLIO,
