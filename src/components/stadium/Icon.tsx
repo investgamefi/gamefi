@@ -247,6 +247,19 @@ export const Icon = {
       <path d="M4 20 C4 16 8 14 12 14 C16 14 20 16 20 20" />
     </SvgIcon>
   ),
+  Eye: (p: IconProps) => (
+    <SvgIcon {...p}>
+      <path d="M2.5 12 C5 7.2 8.4 4.8 12 4.8 C15.6 4.8 19 7.2 21.5 12 C19 16.8 15.6 19.2 12 19.2 C8.4 19.2 5 16.8 2.5 12 Z" />
+      <circle cx="12" cy="12" r="3" />
+    </SvgIcon>
+  ),
+  EyeOff: (p: IconProps) => (
+    <SvgIcon {...p}>
+      <path d="M2.5 12 C5 7.2 8.4 4.8 12 4.8 C15.6 4.8 19 7.2 21.5 12 C19 16.8 15.6 19.2 12 19.2 C8.4 19.2 5 16.8 2.5 12 Z" />
+      <circle cx="12" cy="12" r="3" />
+      <path d="M4.5 19.5 L19.5 4.5" />
+    </SvgIcon>
+  ),
 };
 
 export type IconName = keyof typeof Icon;

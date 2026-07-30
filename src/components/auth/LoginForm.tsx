@@ -167,6 +167,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               leftIcon={<Icon.Profile size={14} />}
+              autoComplete="username"
             />
 
             <Input
@@ -176,6 +177,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               leftIcon={<Icon.Bolt size={14} />}
+              showPasswordToggle
+              autoComplete="current-password"
             />
 
             <div className="flex justify-end" style={{ marginTop: -4 }}>

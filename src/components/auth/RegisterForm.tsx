@@ -174,6 +174,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               leftIcon={<Icon.Profile size={14} />}
+              autoComplete="username"
             />
 
             <Input
@@ -185,6 +186,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
               /* Was Icon.Bell, which read as a notifications opt-in.
                  Use the envelope (Sprint 5, Sarah). */
               leftIcon={<Icon.Envelope size={14} />}
+              autoComplete="email"
             />
 
             <Input
@@ -194,6 +196,8 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               leftIcon={<Icon.Bolt size={14} />}
+              showPasswordToggle
+              autoComplete="new-password"
             />
 
             <Input
@@ -203,6 +207,8 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) =
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               leftIcon={<Icon.Bolt size={14} />}
+              showPasswordToggle
+              autoComplete="new-password"
             />
 
             <button
