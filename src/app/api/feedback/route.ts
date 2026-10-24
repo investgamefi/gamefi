@@ -31,9 +31,25 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET - Get feedback (admin only - for future use)
+// GET - Get feedback (admin only).
+//
+// This used to be wide open — anyone could curl the endpoint and
+// harvest every submitter's email address. Now requires a valid
+// session (middleware-injected header) whose user id appears in the
+// ADMIN_USER_IDS env var (comma-separated). With the env var unset,
+// everyone is denied; feedback is still readable in the Supabase
+// dashboard directly.
 export async function GET(request: NextRequest) {
   try {
+    const sessionUserId = request.headers.get('x-session-user-id');
+    const adminIds = (process.env.ADMIN_USER_IDS || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!sessionUserId || !adminIds.includes(sessionUserId)) {
+      return NextResponse.json({ success: false, error: 'Not authorized' }, { status: 403 });
+    }
+
     const { data: feedback, error } = await supabase
       .from('feedback')
       .select('*')
