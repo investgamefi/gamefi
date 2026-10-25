@@ -62,6 +62,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    /* Owners can snapshot private squads via POST, so only expose
+       snapshots of public squads — or of the viewer's own. */
+    const { data: owner } = await supabase
+      .from('portfolios')
+      .select('user_id, is_public')
+      .eq('id', portfolioId)
+      .maybeSingle();
+    const viewerId = request.headers.get('x-session-user-id');
+    if (!owner || (!owner.is_public && owner.user_id !== viewerId)) {
+      return NextResponse.json({ success: false, error: 'Portfolio not found' }, { status: 404 });
+    }
+
     const { data, error } = await supabase
       .from('portfolio_snapshots')
       .select('*')

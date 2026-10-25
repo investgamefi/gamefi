@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { requireSessionUserId } from '@/lib/session';
 import { REFERRAL_REWARDS } from '@/types';
 
-// GET - Get user's referral info
+// GET - Get the signed-in user's referral info
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.nextUrl.searchParams.get('userId');
-
-    if (!userId) {
-      return NextResponse.json({ success: false, error: 'User ID required' }, { status: 400 });
-    }
+    const sessionResult = requireSessionUserId(request, request.nextUrl.searchParams.get('userId'));
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const userId = sessionResult;
 
     // Get user's referral code
     const { data: user, error: userError } = await supabase
@@ -71,10 +70,13 @@ export async function GET(request: NextRequest) {
 // POST - Use a referral code (for new users)
 export async function POST(request: NextRequest) {
   try {
-    const { userId, referralCode } = await request.json();
+    const { userId: bodyUserId, referralCode } = await request.json();
+    const sessionResult = requireSessionUserId(request, bodyUserId);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const userId = sessionResult;
 
-    if (!userId || !referralCode) {
-      return NextResponse.json({ success: false, error: 'User ID and referral code required' }, { status: 400 });
+    if (!referralCode) {
+      return NextResponse.json({ success: false, error: 'Referral code required' }, { status: 400 });
     }
 
     // Check if user was already referred

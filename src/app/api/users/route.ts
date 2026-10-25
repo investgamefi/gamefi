@@ -76,10 +76,16 @@ export async function GET(request: NextRequest) {
       supabase.from('badges').select('*').eq('user_id', userId),
     ]);
 
+    /* Email is private: only the account owner gets it back. Any other
+       viewer (public profiles, squad owner lookups) sees no email —
+       user ids are visible in public links, so returning it to everyone
+       exposed every user's address. */
+    const isSelf = request.headers.get('x-session-user-id') === dbUser.id;
+
     const user = {
       id: dbUser.id,
       username: dbUser.username,
-      email: dbUser.email,
+      email: isSelf ? dbUser.email : undefined,
       displayName: dbUser.display_name,
       avatar: dbUser.avatar,
       bio: dbUser.bio,
@@ -138,18 +144,12 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    /* Identity check. Session header (signed cookie via middleware)
-       wins over body-supplied requesterId. Both must agree if both
-       are present. */
-    const sessionUserId = request.headers.get('x-session-user-id');
-    const effectiveRequester = sessionUserId || bodyRequester || id;
-    if (sessionUserId && bodyRequester && sessionUserId !== bodyRequester) {
-      return NextResponse.json(
-        { success: false, error: 'Session userId does not match request requesterId.' },
-        { status: 403 },
-      );
-    }
-    if (effectiveRequester !== id) {
+    /* Identity check: the session is required and must be the user
+       being edited. The old fallback treated a missing session as
+       "requester = id", which let anyone edit any profile. */
+    const sessionResult = requireSessionUserId(request, bodyRequester);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    if (sessionResult !== id) {
       return NextResponse.json(
         { success: false, error: 'Not authorized to update this user.' },
         { status: 403 },

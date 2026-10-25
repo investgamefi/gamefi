@@ -17,6 +17,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { requireSessionUserId } from '@/lib/session';
 import { Portfolio, PortfolioPlayer } from '@/types';
 import {
   fetchSP500ReturnForPeriod,
@@ -60,13 +61,11 @@ function mapPortfolio(data: DbPortfolioRow): Portfolio {
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.nextUrl.searchParams.get('userId');
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'userId required' },
-        { status: 400 },
-      );
-    }
+    /* Session-bound: each call fans out to Yahoo per holding, so an
+       open endpoint was also a free amplifier for anyone's user id. */
+    const sessionResult = requireSessionUserId(request, request.nextUrl.searchParams.get('userId'));
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const userId = sessionResult;
 
     /* Pull every active challenge where this user is on either side. */
     const { data: challenges, error } = await supabase

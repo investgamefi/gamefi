@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { hashPassword, verifyPassword, validatePassword } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
+import { requireSessionUserId } from '@/lib/session';
 
 interface ChangePasswordRequest {
-  userId: string;
+  userId?: string;
   currentPassword: string;
   newPassword: string;
 }
@@ -11,9 +12,15 @@ interface ChangePasswordRequest {
 export async function POST(request: NextRequest) {
   try {
     const body: ChangePasswordRequest = await request.json();
-    const { userId, currentPassword, newPassword } = body;
+    const { currentPassword, newPassword } = body;
 
-    if (!userId || !currentPassword || !newPassword) {
+    /* The account comes from the session, never the body — otherwise
+       anyone could brute-force the current password of any user id. */
+    const sessionResult = requireSessionUserId(request, body.userId);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const userId = sessionResult;
+
+    if (!currentPassword || !newPassword) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }

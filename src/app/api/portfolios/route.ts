@@ -6,17 +6,21 @@ import { Portfolio, Formation, PortfolioPlayer } from '@/types';
 
 // GET - Fetch portfolios (optionally by user_id)
 /* GET — Fetch portfolios (optionally by user_id, or a single by ?id=X).
-   When ?id=X is supplied with ?viewerId=Y the F7 privacy gate applies:
-   - viewerId missing or === owner → live data
-   - viewerId !== owner → swap in latest portfolio_snapshots row + flag
-     isSnapshot=true. If no snapshot exists yet, return live with
-     noSnapshotAvailable=true. */
+   The viewer is the SESSION user — the ?viewerId= param is ignored,
+   since a client-supplied viewer let anyone skip the privacy gate by
+   simply leaving it off.
+   - ?userId=X: all of X's squads when X is the viewer, otherwise only
+     X's public squads.
+   - ?id=X: private squads are invisible (404) to anyone but the owner.
+     F7 privacy gate: a non-owner viewer gets the latest
+     portfolio_snapshots row (isSnapshot=true), or live data flagged
+     noSnapshotAvailable=true when no snapshot exists yet. */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
     const portfolioId = searchParams.get('id');
-    const viewerId = searchParams.get('viewerId');
+    const viewerId = request.headers.get('x-session-user-id');
 
     let query = supabase.from('portfolios').select('*');
 
@@ -24,15 +28,21 @@ export async function GET(request: NextRequest) {
       query = query.eq('id', portfolioId);
     } else if (userId) {
       query = query.eq('user_id', userId);
+      if (userId !== viewerId) query = query.eq('is_public', true);
     } else {
       // Return public portfolios
       query = query.eq('is_public', true);
     }
 
-    const { data: portfolios, error } = await query;
+    const { data: rows, error } = await query;
 
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+
+    const portfolios = (rows || []).filter((p) => p.is_public || p.user_id === viewerId);
+    if (portfolioId && portfolios.length === 0) {
+      return NextResponse.json({ success: false, error: 'Portfolio not found' }, { status: 404 });
     }
 
     // Convert to app format
@@ -79,9 +89,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // F7 privacy gate: single portfolio + viewerId who isn't the owner →
-    // swap in latest snapshot players/formation, flag isSnapshot.
-    if (portfolioId && viewerId && formattedPortfolios.length > 0) {
+    // F7 privacy gate: single portfolio + a viewer who isn't the owner
+    // (including anonymous visitors) → swap in latest snapshot
+    // players/formation, flag isSnapshot.
+    if (portfolioId && formattedPortfolios.length > 0) {
       const portfolio = formattedPortfolios[0];
       if (viewerId !== portfolio.userId) {
         const { data: snapshotRow } = await supabase
@@ -260,24 +271,11 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Portfolio ID required' }, { status: 400 });
     }
 
-    /* Ownership check. The signed session cookie (decoded by middleware
-       into the x-session-user-id header) is the source of truth. We
-       still accept a body userId as a fallback for the migration
-       window but reject it if it doesn't match the session. */
-    const sessionUserId = request.headers.get('x-session-user-id');
-    const userId = sessionUserId || bodyUserId;
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthenticated — session required.' },
-        { status: 401 },
-      );
-    }
-    if (sessionUserId && bodyUserId && sessionUserId !== bodyUserId) {
-      return NextResponse.json(
-        { success: false, error: 'Session userId does not match request userId.' },
-        { status: 403 },
-      );
-    }
+    /* Ownership check. The session is required; the old fallback to a
+       body userId let anyone edit any squad by naming its owner. */
+    const sessionResult = requireSessionUserId(request, bodyUserId);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const userId = sessionResult;
     {
       const { data: owned, error: ownErr } = await supabase
         .from('portfolios')
@@ -356,13 +354,17 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// PATCH - Toggle like on a portfolio
+// PATCH - Toggle like on a portfolio (as the signed-in user)
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { portfolioId, userId, action } = body;
+    const { portfolioId, userId: bodyUserId, action } = body;
 
-    if (!portfolioId || !userId) {
+    const sessionResult = requireSessionUserId(request, bodyUserId);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const userId = sessionResult;
+
+    if (!portfolioId) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -429,9 +431,14 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-// DELETE - Delete a portfolio
+// DELETE - Delete a portfolio (owner only).
+// Previously had no auth at all: anyone could delete any squad by id.
 export async function DELETE(request: NextRequest) {
   try {
+    const sessionResult = requireSessionUserId(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const userId = sessionResult;
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
@@ -439,7 +446,22 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Portfolio ID required' }, { status: 400 });
     }
 
-    const { error } = await supabase.from('portfolios').delete().eq('id', id);
+    const { data: owned } = await supabase
+      .from('portfolios')
+      .select('user_id')
+      .eq('id', id)
+      .maybeSingle();
+    if (!owned) {
+      return NextResponse.json({ success: false, error: 'Portfolio not found' }, { status: 404 });
+    }
+    if (owned.user_id !== userId) {
+      return NextResponse.json(
+        { success: false, error: 'Not authorized to delete this portfolio' },
+        { status: 403 },
+      );
+    }
+
+    const { error } = await supabase.from('portfolios').delete().eq('id', id).eq('user_id', userId);
 
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });

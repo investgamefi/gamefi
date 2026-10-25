@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { getSessionUserId, requireAdminUserId } from '@/lib/session';
 
-// POST - Submit feedback
+// POST - Submit feedback. Open to anyone, but the submitter's identity
+// comes from the session — a body userId/username could impersonate.
 export async function POST(request: NextRequest) {
   try {
     const feedback = await request.json();
+    const { userId: sessionUserId } = getSessionUserId(request);
 
     const { error } = await supabase.from('feedback').insert({
       type: feedback.type,
       message: feedback.message,
       email: feedback.email,
-      user_id: feedback.userId,
-      username: feedback.username,
+      user_id: sessionUserId,
+      username: sessionUserId ? feedback.username : null,
       url: feedback.url,
       user_agent: feedback.userAgent,
       created_at: feedback.timestamp || new Date().toISOString(),
@@ -41,14 +44,8 @@ export async function POST(request: NextRequest) {
 // dashboard directly.
 export async function GET(request: NextRequest) {
   try {
-    const sessionUserId = request.headers.get('x-session-user-id');
-    const adminIds = (process.env.ADMIN_USER_IDS || '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (!sessionUserId || !adminIds.includes(sessionUserId)) {
-      return NextResponse.json({ success: false, error: 'Not authorized' }, { status: 403 });
-    }
+    const admin = requireAdminUserId(request);
+    if (admin instanceof NextResponse) return admin;
 
     const { data: feedback, error } = await supabase
       .from('feedback')

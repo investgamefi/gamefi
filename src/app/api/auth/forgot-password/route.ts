@@ -146,44 +146,37 @@ export async function POST(request: NextRequest) {
     const baseUrl = getBaseUrl(request);
     const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
 
-    if (insertError) {
-      // Table might not exist - log for now, but return success to prevent enumeration
-      console.log('Password reset token storage failed (table may not exist):', insertError);
-      console.log('Reset token for', email, ':', resetToken);
+    /* The reset token must only ever reach the account owner's inbox.
+       Returning it in the response (the old "demo" fallback) let anyone
+       take over any account by typing its email, whenever email sending
+       wasn't configured — which was the case in production. Local dev
+       still gets the token back so the flow is testable without Resend. */
+    const exposeTokenForDev = process.env.NODE_ENV !== 'production';
+    const genericSuccess = {
+      success: true,
+      message: 'If an account with that email exists, a password reset link has been sent.',
+    };
 
-      // For demo purposes, return the token in the response
-      // In production, this would be sent via email only
-      return NextResponse.json({
-        success: true,
-        message: 'If an account with that email exists, a password reset link has been sent.',
-        // DEMO ONLY - Remove in production
-        demo_token: resetToken,
-        demo_note: 'In production, this token would be sent via email. Use this URL: /reset-password?token=' + resetToken,
-      });
+    if (insertError) {
+      console.error('Password reset token storage failed (table may not exist):', insertError);
+      return NextResponse.json(genericSuccess);
     }
 
-    // Actually send the email. sendResetEmail handles its own logging and
-    // returns false (without throwing) when RESEND_API_KEY is unset so dev
-    // environments still work — the URL gets logged to the console.
+    // sendResetEmail returns false (without throwing) when RESEND_API_KEY
+    // is unset or Resend rejects the send.
     const sent = await sendResetEmail(user.email, user.username, resetUrl);
-    if (!sent) {
-      // Local/dev fallback: also include the URL in the response so the
-      // user can copy it manually when no real email pipeline is configured.
-      // In production with RESEND_API_KEY set, sent=true and we don't leak
-      // the URL back to the caller.
-      console.log(`Password reset link for ${email}: ${resetUrl}`);
+    if (!sent && exposeTokenForDev) {
       return NextResponse.json({
-        success: true,
-        message: 'If an account with that email exists, a password reset link has been sent.',
+        ...genericSuccess,
         demo_token: resetToken,
         demo_note: 'Email send unavailable in this environment. Use this URL: /reset-password?token=' + resetToken,
       });
     }
+    if (!sent) {
+      console.error('Password reset email was not sent; set RESEND_API_KEY to enable password resets.');
+    }
 
-    return NextResponse.json({
-      success: true,
-      message: 'If an account with that email exists, a password reset link has been sent.',
-    });
+    return NextResponse.json(genericSuccess);
   } catch (error) {
     console.error('Forgot password error:', error);
     return NextResponse.json(

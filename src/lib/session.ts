@@ -116,3 +116,42 @@ export function requireSessionUserId(
   }
   return headerId;
 }
+
+/* Session + admin allowlist. Admins are the user ids listed in the
+   ADMIN_USER_IDS env var (comma-separated). Unset means nobody is an
+   admin — fail closed. Same return contract as requireSessionUserId. */
+export function requireAdminUserId(req: Request): string | NextResponse {
+  const session = requireSessionUserId(req);
+  if (session instanceof NextResponse) return session;
+  const admins = (process.env.ADMIN_USER_IDS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!admins.includes(session)) {
+    return NextResponse.json({ success: false, error: 'Not authorized' }, { status: 403 });
+  }
+  return session;
+}
+
+/* Guard for cron and other server-to-server endpoints. Vercel sends
+   `Authorization: Bearer <CRON_SECRET>` to scheduled jobs once the
+   CRON_SECRET env var is set. With the secret unset the request is
+   refused in production and allowed only in local dev. Returns null
+   when the caller may proceed, otherwise a 401 response to return. */
+export function requireCronSecret(req: Request): NextResponse | null {
+  const secret = process.env.CRON_SECRET || '';
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[cron] CRON_SECRET is not set; refusing request.');
+      return NextResponse.json(
+        { success: false, error: 'Cron secret not configured' },
+        { status: 401 },
+      );
+    }
+    return null;
+  }
+  if (req.headers.get('authorization') !== `Bearer ${secret}`) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
+  return null;
+}

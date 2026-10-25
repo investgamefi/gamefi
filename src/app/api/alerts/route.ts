@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { requireSessionUserId } from '@/lib/session';
 import { MAX_PRICE_ALERTS } from '@/types';
+
+/* Every handler acts on the signed-in user only. A userId in the query
+   or body is accepted for backwards compatibility but must match the
+   session (requireSessionUserId returns 403 otherwise). */
 
 // GET - Get user's price alerts
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.nextUrl.searchParams.get('userId');
-
-    if (!userId) {
-      return NextResponse.json({ success: false, error: 'User ID required' }, { status: 400 });
-    }
+    const sessionResult = requireSessionUserId(request, request.nextUrl.searchParams.get('userId'));
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const userId = sessionResult;
 
     const { data: alerts, error } = await supabase
       .from('price_alerts')
@@ -53,9 +56,12 @@ export async function GET(request: NextRequest) {
 // POST - Create a new price alert
 export async function POST(request: NextRequest) {
   try {
-    const { userId, symbol, assetName, condition, targetPrice, targetPercent, currentPrice } = await request.json();
+    const { userId: bodyUserId, symbol, assetName, condition, targetPrice, targetPercent, currentPrice } = await request.json();
+    const sessionResult = requireSessionUserId(request, bodyUserId);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const userId = sessionResult;
 
-    if (!userId || !symbol || !condition) {
+    if (!symbol || !condition) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -120,10 +126,13 @@ export async function POST(request: NextRequest) {
 // DELETE - Delete a price alert
 export async function DELETE(request: NextRequest) {
   try {
-    const { alertId, userId } = await request.json();
+    const { alertId, userId: bodyUserId } = await request.json();
+    const sessionResult = requireSessionUserId(request, bodyUserId);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const userId = sessionResult;
 
-    if (!alertId || !userId) {
-      return NextResponse.json({ success: false, error: 'Alert ID and User ID required' }, { status: 400 });
+    if (!alertId) {
+      return NextResponse.json({ success: false, error: 'Alert ID required' }, { status: 400 });
     }
 
     const { error } = await supabase
@@ -147,10 +156,13 @@ export async function DELETE(request: NextRequest) {
 // PUT - Update alert (toggle active status)
 export async function PUT(request: NextRequest) {
   try {
-    const { alertId, userId, isActive } = await request.json();
+    const { alertId, userId: bodyUserId, isActive } = await request.json();
+    const sessionResult = requireSessionUserId(request, bodyUserId);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const userId = sessionResult;
 
-    if (!alertId || !userId) {
-      return NextResponse.json({ success: false, error: 'Alert ID and User ID required' }, { status: 400 });
+    if (!alertId) {
+      return NextResponse.json({ success: false, error: 'Alert ID required' }, { status: 400 });
     }
 
     const { error } = await supabase

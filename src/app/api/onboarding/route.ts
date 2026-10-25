@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { requireSessionUserId } from '@/lib/session';
 
 // GET - Check onboarding status
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.nextUrl.searchParams.get('userId');
-
-    if (!userId) {
-      return NextResponse.json({ success: false, error: 'User ID required' }, { status: 400 });
-    }
+    const sessionResult = requireSessionUserId(request, request.nextUrl.searchParams.get('userId'));
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const userId = sessionResult;
 
     const { data: onboarding, error } = await supabase
       .from('user_onboarding')
@@ -37,11 +36,10 @@ export async function GET(request: NextRequest) {
 // POST - Update onboarding status
 export async function POST(request: NextRequest) {
   try {
-    const { userId, completed, skipped, currentStep } = await request.json();
-
-    if (!userId) {
-      return NextResponse.json({ success: false, error: 'User ID required' }, { status: 400 });
-    }
+    const { userId: bodyUserId, completed, skipped, currentStep } = await request.json();
+    const sessionResult = requireSessionUserId(request, bodyUserId);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const userId = sessionResult;
 
     const updateData: any = {};
 

@@ -12,9 +12,7 @@ import {
   calculatePortfolioReturnForPeriod,
   formatDateString,
 } from '@/lib/challengePerformance';
-
-// Secret key for cron authentication (set in environment variables)
-const CRON_SECRET = process.env.CRON_SECRET || '';
+import { requireCronSecret } from '@/lib/session';
 
 /* Resolve the base XP at stake by challenge type. */
 function baseXpForType(type: string): number {
@@ -49,16 +47,8 @@ function xpWithMultiplier(base: number, timeframe: ChallengeTimeframe): number {
  */
 export async function GET(request: NextRequest) {
   try {
-    // Verify cron secret if configured
-    if (CRON_SECRET) {
-      const authHeader = request.headers.get('authorization');
-      if (authHeader !== `Bearer ${CRON_SECRET}`) {
-        return NextResponse.json(
-          { success: false, error: 'Unauthorized' },
-          { status: 401 }
-        );
-      }
-    }
+    const denied = requireCronSecret(request);
+    if (denied) return denied;
 
     // Find all active challenges that have ended
     const { data: challenges, error: fetchError } = await supabase

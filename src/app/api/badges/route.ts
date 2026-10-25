@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { requireAdminUserId, requireSessionUserId } from '@/lib/session';
 import { ACHIEVEMENT_BADGES, AchievementBadge } from '@/types';
 
 // GET - Get user's badges
@@ -46,9 +47,15 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Award a badge to user
+// POST - Award a badge to user.
+// Admin-only: it grants arbitrary badges plus their XP to any user id,
+// so even a logged-in user calling it for themselves would be an XP
+// cheat. Earned badges come from PUT below, which checks real stats.
 export async function POST(request: NextRequest) {
   try {
+    const admin = requireAdminUserId(request);
+    if (admin instanceof NextResponse) return admin;
+
     const { userId, badgeId } = await request.json();
 
     if (!userId || !badgeId) {
@@ -119,14 +126,13 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT - Check and award badges based on user stats
+// PUT - Check and award badges based on the signed-in user's stats
 export async function PUT(request: NextRequest) {
   try {
-    const { userId } = await request.json();
-
-    if (!userId) {
-      return NextResponse.json({ success: false, error: 'User ID required' }, { status: 400 });
-    }
+    const body = await request.json().catch(() => ({}));
+    const sessionResult = requireSessionUserId(request, body.userId);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const userId = sessionResult;
 
     // Get user stats
     const { data: stats } = await supabase

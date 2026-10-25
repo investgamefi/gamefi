@@ -6,11 +6,9 @@ import { DAILY_LOGIN_REWARDS } from '@/types';
 // GET - Check if user can claim daily reward and get streak info
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.nextUrl.searchParams.get('userId');
-
-    if (!userId) {
-      return NextResponse.json({ success: false, error: 'User ID required' }, { status: 400 });
-    }
+    const sessionResult = requireSessionUserId(request, request.nextUrl.searchParams.get('userId'));
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const userId = sessionResult;
 
     // Get user's streak info
     const { data: streak, error: streakError } = await supabase

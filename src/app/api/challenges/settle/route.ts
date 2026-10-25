@@ -12,6 +12,7 @@ import {
   calculatePortfolioReturnForPeriod,
   formatDateString,
 } from '@/lib/challengePerformance';
+import { requireCronSecret } from '@/lib/session';
 
 /* Still needed for the autoSettle path below, which fans out by POSTing
    back to /api/challenges/settle once per challenge. The settle math
@@ -37,9 +38,16 @@ function xpWithMultiplier(base: number, timeframe: ChallengeTimeframe): number {
   return Math.round(base * mult);
 }
 
-// POST - Settle completed challenges
+// POST - Settle completed challenges.
+// Server-to-server only (no client caller; the daily cron in
+// /api/cron/settle-challenges does the real settling). Locked behind
+// the cron secret so the public can't trigger XP payouts or race the
+// cron into double-settling.
 export async function POST(request: NextRequest) {
   try {
+    const denied = requireCronSecret(request);
+    if (denied) return denied;
+
     const body = await request.json();
     const { challengeId } = body as { challengeId?: string };
 
@@ -376,6 +384,9 @@ async function createChallengeNotification(
 // GET - Check for challenges that need settling (can be called by cron job)
 export async function GET(request: NextRequest) {
   try {
+    const denied = requireCronSecret(request);
+    if (denied) return denied;
+
     const { searchParams } = new URL(request.url);
     const autoSettle = searchParams.get('autoSettle') === 'true';
 
@@ -409,7 +420,12 @@ export async function GET(request: NextRequest) {
           try {
             const response = await fetch(`${baseUrl}/api/challenges/settle`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                /* Forward the caller's cron bearer so the self-POST
+                   passes the same guard this GET just passed. */
+                Authorization: request.headers.get('authorization') || '',
+              },
               body: JSON.stringify({ challengeId: challenge.id }),
             });
             return { id: challenge.id, success: response.ok };

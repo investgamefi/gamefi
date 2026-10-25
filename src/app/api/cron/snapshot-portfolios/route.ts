@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/lib/supabase';
 import { getSeasonState, SeasonRow, currentWeekendKey } from '@/lib/season';
-
-const CRON_SECRET = process.env.CRON_SECRET || '';
+import { requireCronSecret } from '@/lib/session';
 
 async function getCurrentSeasonState(now: Date) {
   let row: SeasonRow = {
@@ -39,19 +38,12 @@ async function getCurrentSeasonState(now: Date) {
  * have one (idempotent via UNIQUE(portfolio_id, gameweek, season_number)).
  *
  * Auth: set CRON_SECRET env var; request must include `Authorization: Bearer <secret>`.
- * If CRON_SECRET is empty, the endpoint runs unauthenticated (dev only).
+ * If CRON_SECRET is empty, the endpoint is refused in production and open only in local dev.
  */
 export async function GET(request: NextRequest) {
   try {
-    if (CRON_SECRET) {
-      const authHeader = request.headers.get('authorization');
-      if (authHeader !== `Bearer ${CRON_SECRET}`) {
-        return NextResponse.json(
-          { success: false, error: 'Unauthorized' },
-          { status: 401 }
-        );
-      }
-    }
+    const denied = requireCronSecret(request);
+    if (denied) return denied;
 
     const now = new Date();
     const seasonState = await getCurrentSeasonState(now);
